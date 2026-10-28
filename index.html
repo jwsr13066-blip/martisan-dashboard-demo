@@ -6,25 +6,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="styles.css">
-
+<script>try { var t = localStorage.getItem('martisan-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
 <div class="shell">
-  <aside class="side">
-    <div class="brand">
-      <h1>MARTISAN<small>통합 마케팅 대시보드</small></h1>
-      <span class="badge-sample">샘플 데이터</span>
-    </div>
-    <div class="seg" role="group" aria-label="업종 선택" id="seg">
-      <button type="button" data-ind="commerce" aria-pressed="true">커머스</button>
-      <button type="button" data-ind="local" aria-pressed="false">로컬 매장</button>
-      <button type="button" data-ind="lead" aria-pressed="false">리드</button>
-    </div>
-    <nav class="nav" id="nav" aria-label="메뉴"></nav>
-    <div class="side-foot" id="side-foot"></div>
-  </aside>
+  <aside class="side" id="side"></aside>
   <main class="main" id="main"></main>
 </div>
 <div class="tip num" id="tip" hidden></div>
@@ -32,7 +20,11 @@
 <script src="data.js"></script>
 <script src="live.js"></script>
 <script src="charts.js"></script>
+<script src="range.js"></script>
+<script src="ui.js"></script>
 <script src="home.js"></script>
+<script src="pages.js"></script>
+<script src="creatives.js"></script>
 <script src="app.js"></script>
 
 </body>

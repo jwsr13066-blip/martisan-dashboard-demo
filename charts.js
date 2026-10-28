@@ -25,11 +25,12 @@ const W = 720;
 const gridLines = (maxY, y, L, R, yFmt) => ticks(maxY).map((t) =>
   `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="ax" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${yFmt(t)}</text>`).join('');
 
-/* 선 그래프: series [{name,color,values[]}], xLabels[], band {lo,hi}, refs [{value,label}] */
-const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs = [], area = true }) => {
+/* 선 그래프: series [{name,color,values[],area}], xLabels[], band {lo,hi}, refs [{value,label}],
+   zones [{lo,hi,cls,label}] = 배경 구간 (손익분기 미달·목표 미달·목표 달성) */
+const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs = [], area = true, zones = [] }) => {
   const H = height, L = 60, R = 16, T = 18, B = 28;
   const n = xLabels.length;
-  const rawMax = Math.max(...series.flatMap((s) => s.values), ...refs.map((r) => r.value), band ? band.hi : 0);
+  const rawMax = Math.max(...series.flatMap((s) => s.values), ...refs.map((r) => r.value), band ? band.hi : 0, ...zones.filter((z) => z.hi !== Infinity).map((z) => z.hi), 1);
   const maxY = niceMax(rawMax * 1.08);
   const x = (i) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : (W - L - R) / 2);
   const y = (v) => T + (H - T - B) * (1 - v / maxY);
@@ -39,6 +40,11 @@ const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs 
     <text class="ax band-l" x="${L + 6}" y="${y(band.hi) + 13}">${escT(band.label || '')}</text>` : '';
   const refEls = refs.map((r) => `<line class="ref" x1="${L}" x2="${W - R}" y1="${y(r.value)}" y2="${y(r.value)}"/>
     <text class="ax ref-l" x="${W - R}" y="${y(r.value) - 5}" text-anchor="end">${escT(r.label)}</text>`).join('');
+  const zoneEls = zones.map((z) => {
+    const top = y(Math.min(z.hi, maxY)), bot = y(Math.max(z.lo, 0));
+    return bot > top ? `<rect class="zone ${z.cls}" x="${L}" y="${top}" width="${W - L - R}" height="${bot - top}"/>
+      ${bot - top > 18 ? `<text class="ax zone-l ${z.cls}" x="${L + 6}" y="${top + 14}" text-anchor="start">${escT(z.label || '')}</text>` : ''}` : '';
+  }).join('');
   const paths = series.map((s) => {
     const pts = s.values.map((v, i) => `${x(i)},${y(v)}`);
     const ar = area && s.area !== false ? `<path class="area" d="M${pts.join(' L')} L${x(n - 1)},${y(0)} L${x(0)},${y(0)} Z" style="fill:${s.color}"/>` : '';
@@ -51,7 +57,7 @@ const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs 
     const tip = series.map((s) => `${s.name} ${yFmt(s.values[i])}`).join(' · ');
     return `<rect class="hit" x="${x(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B}" data-tip="${escT(l)} · ${escT(tip)}"/>`;
   }).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="ch" role="img">${bandEl}${gridLines(maxY, y, L, R, yFmt)}${refEls}${paths}${xl}${hits}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="ch" role="img">${zoneEls}${bandEl}${gridLines(maxY, y, L, R, yFmt)}${refEls}${paths}${xl}${hits}</svg>`;
 };
 
 /* 가로 막대: rows [{label,value,color,text,tip}], refs [{value,label,pos:'top'|'bottom'}] */
@@ -117,8 +123,18 @@ const scatter = ({ points, xFmt = fmtShort, yFmt = fmtPct, refs = [], notes = []
     <text class="ax" x="${W - R}" y="${H - 24}" text-anchor="end">광고비 →</text></svg>`;
 };
 
+/* 반원 게이지: pct 0~100+ (100 넘으면 꽉 참) */
+const gauge = (pct, label, sub = '') => {
+  const p = Math.max(0, Math.min(pct, 100)) / 100, a = Math.PI * (1 - p);
+  const ex = 100 + 80 * Math.cos(a), ey = 100 - 80 * Math.sin(a);
+  return `<svg viewBox="0 0 200 118" class="gauge" role="img" aria-label="${escT(label)} ${Math.round(pct)}%">
+    <path class="g-track" d="M20 100 A80 80 0 0 1 180 100"/>${p > 0.001 ? `<path class="g-val" d="M20 100 A80 80 0 0 1 ${ex.toFixed(1)} ${ey.toFixed(1)}"/>` : ''}
+    <text class="g-num" x="100" y="92" text-anchor="middle">${Math.round(pct)}%</text>${sub ? `<text class="g-sub" x="100" y="114" text-anchor="middle">${escT(sub)}</text>` : ''}</svg>`;
+};
+
 /* 스파크라인 */
 const spark = (values, color, w = 120, h = 32) => {
+  if (values.length < 2) return '';
   const max = Math.max(...values) || 1, min = Math.min(...values);
   const n = values.length;
   const pts = values.map((v, i) => `${(i * (w - 4)) / (n - 1) + 2},${h - 3 - ((v - min) / (max - min || 1)) * (h - 8)}`);
@@ -126,5 +142,5 @@ const spark = (values, color, w = 120, h = 32) => {
     <path class="line" d="M${pts.join(' L')}" style="stroke:${color}"/><circle cx="${pts[n - 1].split(',')[0]}" cy="${pts[n - 1].split(',')[1]}" r="3" style="fill:${color}"/></svg>`;
 };
 
-window.CH = { lineChart, barsH, barsV, scatter, spark, fmtShort, fmtPct, escT };
+window.CH = { lineChart, barsH, barsV, scatter, spark, gauge, fmtShort, fmtPct, escT };
 })();
