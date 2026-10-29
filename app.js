@@ -30,7 +30,7 @@ const initialFor = (key) => {
 let state = {
   ...initialFor(LIVE ? 'live' : 'commerce'), page: 'home', themeOpen: false, approving: false,
   theme: store.get(THEME_KEY) || (LIVE ? D.DATA.live.theme : 'cream') || 'cream',
-  today: LIVE ? kstToday() : D.END_DATE, inboxAll: false, logAll: false, whyOpen: false, tableOpen: false, adSort: 'rev', adAll: false, axis: 'background', trendUnit: 'week',
+  today: LIVE ? kstToday() : D.END_DATE, ruleArm: null, ruleBusy: false, ruleMsg: {}, inboxAll: false, logAll: false, whyOpen: false, tableOpen: false, adSort: 'rev', adAll: false, axis: 'background', trendUnit: 'week',
 };
 
 /* 카드 기본 기간 종류 → 실제 기간 */
@@ -113,6 +113,33 @@ const approve = () => {
     .withFailureHandler((e) => setState({ approving: false, approveError: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveBids(window.MARTISAN_DASH_KEY || '');
 };
 
+/* ---------- 자동 규칙 스위치 (설정 파일 변경 요청 — 한 번 더 눌러야 실행) ----------
+   첫 누름 = 확인 문구, 8초 안에 한 번 더 = 시트 스크립트 toggleRule → GitHub rules-toggle 워크플로가 규칙 파일을 고치고 다음 평가(13:00)부터 반영. 샘플 화면에선 그 자리에서만 바뀐다. */
+let ruleTimer = null;
+const flipRule = (id, enabled) => {
+  const key = state.industry, ind = D.DATA[key], rs = ind.ops && ind.ops.rules;
+  if (!rs) return;
+  D.DATA = { ...D.DATA, [key]: { ...ind, ops: { ...ind.ops, rules: { ...rs, rules: rs.rules.map((r) => (r.id === id ? { ...r, enabled } : r)) } } } };
+};
+const toggleRule = (id, enabled) => {
+  if (state.ruleBusy) return undefined;
+  const arm = state.ruleArm;
+  if (!arm || arm.id !== id) {
+    clearTimeout(ruleTimer);
+    ruleTimer = setTimeout(() => { if (state.ruleArm && state.ruleArm.id === id && !state.ruleBusy) setState({ ruleArm: null }); }, 8000);
+    return setState({ ruleArm: { id, enabled, at: Date.now() } });
+  }
+  if (Date.now() - arm.at < 800) return undefined;
+  clearTimeout(ruleTimer);
+  const done = (m) => setState({ ruleBusy: false, ruleArm: null, ruleMsg: { ...state.ruleMsg, [id]: m } });
+  const run = window.google && window.google.script && window.google.script.run;
+  if (!LIVE || !run) { flipRule(id, enabled); return done(`${enabled ? '켜짐' : '꺼짐'} · 샘플 화면에서만 바뀜`); }
+  setState({ ruleBusy: true, ruleArm: null });
+  return run.withSuccessHandler(() => { flipRule(id, enabled); done(`${enabled ? '켜기' : '끄기'} 요청 접수 · 설정 반영 후 다음 평가(13:00)부터`); })
+    .withFailureHandler((e) => { const m = e && e.message ? e.message : String(e); done(`실행 요청 실패: ${/not found/i.test(m) ? '시트 스크립트에 새 코드(toggleRule) 반영과 새 버전 배포가 필요합니다' : m}`); })
+    .toggleRule(window.MARTISAN_DASH_KEY || '', id, enabled);
+};
+
 /* ---------- 표 복사 ---------- */
 const copyTable = (id) => {
   const t = document.getElementById(id), msg = document.getElementById('copy-msg');
@@ -139,6 +166,7 @@ const onClick = (ev) => {
   if ((b = q('[data-set-theme]'))) { store.set(THEME_KEY, b.dataset.setTheme); return setState({ theme: b.dataset.setTheme, themeOpen: false }); }
   if ((b = q('[data-gp]'))) { const p = R.presets(state.bounds.to)[b.dataset.gp]; return setState({ ...base, range: R.clamp({ from: p.from, to: p.to }, state.bounds), cardRanges: {} }); }
   if (q('[data-approve]')) return ev.detail > 1 ? undefined : approve();
+  if ((b = q('[data-rule-toggle]'))) return ev.detail > 1 ? undefined : toggleRule(b.dataset.ruleToggle, b.dataset.ruleOn !== '1');
   if ((b = q('[data-scroll]'))) return scrollTo(b.dataset.scroll);
   if ((b = q('[data-toggle]'))) return setState({ ...base, [b.dataset.toggle]: !state[b.dataset.toggle] });
   if ((b = q('[data-sort]'))) return setState({ ...base, adSort: b.dataset.sort });
@@ -168,7 +196,7 @@ const onChange = (ev) => {
 
 document.addEventListener('click', onClick);
 document.addEventListener('change', onChange);
-document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && (state.chipOpen || state.themeOpen)) setState({ chipOpen: null, themeOpen: false }); });
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && (state.chipOpen || state.themeOpen || state.ruleArm)) setState({ chipOpen: null, themeOpen: false, ruleArm: null }); });
 
 /* 공용 툴팁 */
 const tip = document.getElementById('tip');

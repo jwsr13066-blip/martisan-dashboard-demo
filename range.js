@@ -15,6 +15,8 @@ const dow = (s) => toDate(s).getUTCDay();
 const md = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
 const mdw = (s) => `${md(s)} (${DOW[dow(s)]})`;
 const fmtRange = (r) => (r.from === r.to ? mdw(r.from) : `${md(r.from)} ~ ${md(r.to)}`);
+/* 비교 기간이 기준 연도를 벗어나면 연도를 붙인다 (1/1부터 고르면 직전 기간은 작년) */
+const fmtRangeY = (r, year) => (r.from.slice(0, 4) === year && r.to.slice(0, 4) === year ? fmtRange(r) : `${r.from.slice(0, 4)}.${md(r.from)} ~ ${r.to.slice(0, 4)}.${md(r.to)}`);
 const monthStart = (s) => `${s.slice(0, 8)}01`;
 const monthEnd = (s) => addDays(`${addMonths(monthStart(s), 1).slice(0, 8)}01`, -1);
 function addMonths(s, n) {
@@ -31,7 +33,7 @@ const dateList = (r) => Array.from({ length: spanDays(r) }, (_, i) => addDays(r.
 
 /* 단축키: 어제 = 데이터 마지막 날 */
 const presets = (last) => ({
-  yesterday: { label: '어제', from: last, to: last },
+  yesterday: { label: '기준일', from: last, to: last },  // 데이터 마지막 날 (수집 전엔 그저께일 수 있어 '어제'라 부르지 않는다)
   d7: { label: '7일', from: addDays(last, -6), to: last },
   d28: { label: '28일', from: addDays(last, -27), to: last },
   month: { label: '이번 달', from: monthStart(last), to: last },
@@ -191,7 +193,7 @@ const creativeAnalysis = (ind, r) => {
 };
 
 window.RANGE = {
-  iso, addDays, spanDays, prevOf, inRange, dow, md, mdw, fmtRange, monthStart, monthEnd, addMonths, clamp, dateList, presets, DOW,
+  iso, addDays, spanDays, prevOf, inRange, dow, md, mdw, fmtRange, fmtRangeY, monthStart, monthEnd, addMonths, clamp, dateList, presets, DOW,
   sumRows, totals, daily, weekly, monthly, channelAgg, groupAgg, deltaPct, withRatios,
   GUARD, AXES, GENERIC, creativeRows, axesAgg, suggestions, creativeAnalysis,
 };

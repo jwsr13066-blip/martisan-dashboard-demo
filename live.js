@@ -6,7 +6,7 @@
   if (!live || !Array.isArray(live.days) || !live.days.length) return;
 
   const COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)'];
-  const channels = live.channels.map((c, i) => ({ id: c.id, name: c.name, color: COLORS[i % COLORS.length], lastDate: c.last_date || null }));
+  const channels = live.channels.map((c, i) => ({ id: c.id, name: c.name, color: COLORS[i % COLORS.length], firstDate: c.first_date || null, lastDate: c.last_date || null, lever: c.lever || 'bid' }));
   const byChannel = Object.fromEntries(channels.map((c) => [c.id, live.days.filter((d) => d.channel === c.id)
     .map((d) => ({ date: d.date, cost: d.cost, clicks: d.clk, conv: d.conv, rev: d.rev }))]));
   const dates = [...new Set(live.days.map((d) => d.date))].sort();

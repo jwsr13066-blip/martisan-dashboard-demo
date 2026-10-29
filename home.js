@@ -2,7 +2,7 @@
 (() => {
 /* 개요 — 오늘 할 일(최적화 제안 승인) + 기간 성과 + 변경 전후 성과 + 변경 내역 + 알림 + 자동 규칙 + 매출 상위 소재 + 성과 진단.
    cx = { ind, st, rng(카드ID, 기본종류) } — 카드마다 기간 칩으로 따로 바꿀 수 있다. */
-const U = window.UI, R = window.RANGE, { gauge } = window.CH;
+const U = window.UI, R = window.RANGE;
 const { esc, won, wonS, cnt, pct, icon, delta, card, kpi, rangeChip } = U;
 
 const DIR = { up: ['good', '인상'], down: ['warn', '인하'], off: ['crit', 'OFF'], hold: ['mute', '유지'], fresh: ['info', '리프레시'] };
@@ -56,15 +56,10 @@ const kpis = (cx) => {
     const badge = key === 'roas' ? (U.sumBadge(ind) || `<span class="badge tone-${U.roasState(val, ind)}">목표 ${ind.target}% · ${U.STATE_WORD[U.roasState(val, ind)]}</span>`) : delta(val, pv, goodUp);
     return kpi({ ic, tone, label, value: fmt(val), badge, sparkVals: series, sparkColor: color, tools: rangeChip(id, r, st) });
   };
-  const m = cx.rng('goal', 'month'), mt = R.totals(ind, m);
-  const goal = ind.monthlyGoal;
-  const pctV = goal ? pct(mt.rev, goal) : pct(mt.roas, ind.target);
-  const left = Math.max(0, R.spanDays({ from: m.to, to: R.monthEnd(m.from) }) - 1);
-  const need = goal && left ? Math.max(0, (goal - mt.rev) / left) : 0;
+  const m = cx.rng('goal', 'month'), gg = U.goalGauge(ind, m);  // 합산 ROAS 로는 판정하지 않는다 — 매체별
   const gaugeCard = `<div class="card" style="align-items:center">
-    <div class="card-h" style="align-self:stretch"><span class="mu">${goal ? '월 목표 달성률' : '월 목표 ROAS 달성률'}${U.multi(ind) ? ' (매체 보고 합계)' : ''}</span>${rangeChip('goal', m, st, { single: true, label: (r) => `${Number(r.from.slice(5, 7))}월` })}</div>
-    ${gauge(pctV, '월 목표 달성률', goal ? `${wonS(mt.rev)} / ${wonS(goal)}` : `ROAS ${cnt(mt.roas)}% / 목표 ${ind.target}%`)}
-    <div class="sm" style="text-align:center">${goal ? (left ? `남은 ${left}일 · 하루 ${wonS(need)} 필요` : '이번 달 마감') : '월 매출 목표를 설정 카드에 넣으면 매출 기준으로 바뀝니다'}</div></div>`;
+    <div class="card-h" style="align-self:stretch"><span class="mu">${esc(gg.title)}</span>${rangeChip('goal', m, st, { single: true, label: (r) => `${Number(r.from.slice(5, 7))}월` })}</div>
+    ${gg.svg}<div class="sm" style="text-align:center">${esc(gg.foot)}</div></div>`;
   return `<section class="grid kpis">
     ${tile('k-rev', 'won', 'good', U.sumLabel(ind), 'rev', (v) => won(v), true, 'var(--good)')}
     ${tile('k-roas', 'roas', 'info', 'ROAS', 'roas', (v) => `${cnt(v)}%`, true, 'var(--info)')}
@@ -158,12 +153,17 @@ const rulesCard = (cx) => {
         eff += ` · 발동일 ROAS ${cnt(fr)}% vs 미발동일 ${cnt(orr)}% (${(fr / Math.max(orr, 1)).toFixed(2)}배)`;
       } else eff += ` · 효과 측정 중 (발동 ${fired.length}/3일)`;
     }
-    return `<div class="rule"><div class="rule-top"><span class="badge tone-${tone}">${lb}</span><span class="tg ${x.enabled ? '' : 'off'}" role="img" aria-label="${x.enabled ? '켜짐' : '꺼짐'}"><i></i></span></div>
-      <b>${esc(x.name)}</b><div class="sm">${esc(x.desc || '')}</div><div class="sm">${eff}</div></div>`;
+    /* 스위치 = 실제 설정 변경 요청. 한 번 누르면 확인, 한 번 더 누르면 시트 스크립트 → GitHub 설정 파일 변경 → 다음 평가부터 반영 */
+    const arm = st.ruleArm && st.ruleArm.id === x.id, msg = (st.ruleMsg || {})[x.id];
+    const sw = `<button type="button" class="tg ${x.enabled ? '' : 'off'} ${arm ? 'arm' : ''}" data-rule-toggle="${esc(x.id)}" data-rule-on="${x.enabled ? 1 : 0}" aria-pressed="${x.enabled}" aria-label="${esc(x.name)} ${x.enabled ? '켜짐 · 누르면 끄기' : '꺼짐 · 누르면 켜기'}"${st.ruleBusy ? ' disabled' : ''}><i></i></button>`;
+    const confirm = arm ? `<div class="alert"><span>정말 ${x.enabled ? '끌까요' : '켤까요'}? 다음 평가(13:00)부터 반영 · <b>스위치를 한 번 더 누르기</b></span></div>`
+      : msg ? `<span class="badge tone-${/실패/.test(msg) ? 'crit' : 'info'}" style="align-self:flex-start">${esc(msg)}</span>` : '';
+    return `<div class="rule"><div class="rule-top"><span class="badge tone-${tone}">${lb}</span>${sw}</div>
+      <b>${esc(x.name)}</b><div class="sm">${esc(x.desc || '')}</div><div class="sm">${eff}</div>${confirm}</div>`;
   };
   return card({ id: 'rules', title: `자동 규칙 ${cfg.rules.length}개`, sub: `조건 → 행동 → 자정 원복${cfg.last_run ? ` · 마지막 평가 ${esc(cfg.last_run.slice(5, 16).replace('T', ' '))}` : ''}`,
     tools: `${w ? `<span class="badge tone-info">${esc(cfg.region || '')} · 강수 ${w.rain_prob}% · ${w.tmin}~${w.tmax}℃</span>` : ''}${rangeChip('rules', r, st)}`,
-    body: `<div class="rules">${cfg.rules.map(ruleBox).join('')}</div><div class="note">날씨·요일 규칙은 가설입니다. 발동일과 미발동일 성과를 비교해 유지·폐기를 결정합니다. 모든 조정은 그룹당 ±20~30% 상한, 자정 원복.</div>` });
+    body: `<div class="rules">${cfg.rules.map(ruleBox).join('')}</div><div class="note">날씨·요일 규칙은 가설입니다. 발동일과 미발동일 성과를 비교해 유지·폐기를 결정합니다. 모든 조정은 그룹당 ±20~30% 상한, 자정 원복. 스위치는 두 번 눌러 확정되며 변경 내역에 남습니다.</div>` });
 };
 
 const topCreatives = (cx) => {
@@ -182,13 +182,13 @@ const whyCard = (cx) => {
   const { ind, st } = cx, r = cx.rng('why');
   const rows = R.channelAgg(ind, r);
   const body = rows.map((c) => {
-    const j = U.judge(c.roas, ind), stale = U.chStale(c, r), small = stale || c.clicks < 10;
+    const j = U.judgeFor(c.roas, ind, c), stale = U.chStale(c, r), small = stale || c.clicks < 10;
     const ws = U.weeklyRoas(ind.byChannel[c.id], r.to, 4);
     return `<div class="li"><span class="dot ${small ? 'mute' : j.s}"></span><div class="grow"><div class="t">${esc(c.name)} · ROAS ${cnt(c.roas)}%${small ? '' : ` → ${esc(j.act)}`}</div>
       <div class="sm">최근 4주 ROAS ${U.roasList(ws)}% · 클릭 ${cnt(c.clicks)} · ${esc(ind.convLabel)} ${cnt(c.conv)}${esc(ind.convUnit)} · 손익분기 ${ind.bep}% = 100 ÷ 마진 ${ind.margin}% · 목표 ${ind.target}%</div></div>
       <span class="badge tone-${small ? 'mute' : j.s}">${stale ? '데이터 미반영 · 판단 보류' : small ? '표본 부족 · 판단 보류' : U.STATE_WORD[j.s]}</span></div>`;
   }).join('');
-  const first = rows[0], j0 = first ? U.judge(first.roas, ind) : null;
+  const first = rows[0], j0 = first ? U.judgeFor(first.roas, ind, first) : null;
   return card({ id: 'why', title: '성과 진단', sub: '같은 숫자는 항상 같은 진단 (고정 규칙) · 클릭 10 미만은 보류',
     tools: `${rangeChip('why', r, st)}<button type="button" class="btn2" style="min-height:34px" data-toggle="whyOpen" aria-expanded="${!!st.whyOpen}">${st.whyOpen ? '접기 ▴' : '펼치기 ▾'}</button>`,
     body: st.whyOpen ? `<div>${body}</div>` : first ? `<div class="alert"><span class="dot ${j0.s}" style="margin-top:4px"></span><span>${esc(first.name)} · ROAS ${cnt(first.roas)}% · ${U.STATE_WORD[j0.s]} → ${esc(j0.act)}</span></div>` : '' });

@@ -47,14 +47,13 @@ const monthCards = (cx) => {
   const bars = barsV({ height: 250, valueLabels: true, groups: ms.map((m, i) => ({ label: `${Number(m.month.slice(5))}월${m.month === cur ? '*' : ''}`,
     parts: hasTotal ? [{ value: m.rev, color: 'var(--good)' }, { value: Math.max(0, totals[i].rev - m.rev), color: 'var(--good-soft)' }] : [{ value: m.rev, color: m.month === cur ? 'var(--good)' : 'var(--c1)' }],
     tip: `${m.month} · ${esc(U.sumLabel(ind))} ${won(m.rev)} · 광고비 ${won(m.cost)} · ROAS ${cnt(m.roas)}%` })) });
-  const g = cx.rng('mgoal', 'month'), gt = R.totals(ind, g), goal = ind.monthlyGoal;
-  const left = Math.max(0, R.spanDays({ from: g.to, to: R.monthEnd(g.from) }) - 1);
+  const g = cx.rng('mgoal', 'month'), gg = U.goalGauge(ind, g), goal = gg.goal, left = gg.left;  // 합산 ROAS 로는 판정하지 않는다 — 매체별
   return card({ id: 'month', span: 8, title: '월간 추이', sub: '* 진행 중인 달 · 막대에 마우스를 올리면 광고비·ROAS', tools: rangeChip('month', r, st, { label: (x) => `${x.from.slice(0, 7)} ~ ${x.to.slice(0, 7)}` }),
     body: bars + legend(hasTotal ? [['var(--good)', `광고 기여 ${esc(ind.revLabel)}`], ['var(--good-soft)', `${esc(ind.totalLabel)} 나머지`]] : [['var(--c1)', U.sumLabel(ind)]]) })
-    + card({ id: 'mgoal', span: 4, title: (goal ? '월 목표 달성률' : '월 목표 ROAS 달성률') + (U.multi(ind) ? ' (매체 보고 합계)' : ''), tools: rangeChip('mgoal', g, st, { single: true, label: (x) => `${Number(x.from.slice(5, 7))}월` }),
-      body: `<div style="display:flex;justify-content:center">${gauge(goal ? pct(gt.rev, goal) : pct(gt.roas, ind.target), '월 목표', goal ? `${wonS(gt.rev)} / ${wonS(goal)}` : `ROAS ${cnt(gt.roas)}% / ${ind.target}%`)}</div>
-        <div class="tiles" style="grid-template-columns:1fr 1fr"><div class="tile"><span class="sm">남은 날</span><b>${left}일</b></div><div class="tile"><span class="sm">${goal ? '하루 필요 매출' : '이번 달 ' + esc(U.sumLabel(ind))}</span><b class="num">${goal ? (left ? wonS(Math.max(0, (goal - gt.rev) / left)) : '마감') : wonS(gt.rev)}</b></div></div>
-        ${goal ? '' : '<div class="note">월 매출 목표를 설정 카드(economics.monthly_revenue_goal)에 넣으면 매출 기준으로 바뀝니다.</div>'}` });
+    + card({ id: 'mgoal', span: 4, title: esc(gg.title), tools: rangeChip('mgoal', g, st, { single: true, label: (x) => `${Number(x.from.slice(5, 7))}월` }),
+      body: `<div style="display:flex;justify-content:center">${gg.svg}</div>
+        <div class="tiles" style="grid-template-columns:1fr 1fr"><div class="tile"><span class="sm">남은 날</span><b>${left}일</b></div><div class="tile"><span class="sm">${goal ? '하루 필요 매출' : '이번 달 ' + esc(U.sumLabel(ind))}</span><b class="num">${goal ? (left ? wonS(Math.max(0, (goal - gg.rev) / left)) : '마감') : wonS(gg.rev)}</b></div></div>
+        ${goal ? '' : `<div class="note">${U.multi(ind) ? `${esc(gg.foot)} · ` : ''}월 매출 목표를 설정 카드(economics.monthly_revenue_goal)에 넣으면 매출 기준으로 바뀝니다.</div>`}` });
 };
 
 /* 매체 비중 도넛 + 오른쪽 범례 (매체별 % · 금액) */
@@ -136,7 +135,7 @@ const bulletCard = (cx) => {
   const body = rows.map((c) => {
     const dp = c.prev.cost ? c.roas - c.prev.roas : null;
     return `<div class="bullet-row"><div style="display:flex;flex-direction:column;gap:4px"><span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:3px;background:${c.color}"></span><b>${esc(c.name)}</b></span>
-      <span class="big num">${cnt(c.roas)}%</span>${U.chStale(c, r) ? U.chBadge(c, r, ind) : `<span class="badge tone-${U.roasState(c.roas, ind)}" style="align-self:flex-start">${U.STATE_WORD[U.roasState(c.roas, ind)]}${dp == null ? '' : ` · 직전 기간 ${dp >= 0 ? '▲' : '▼'}${Math.abs(dp)}%p`}</span>`}</div>
+      <span class="big num">${U.chStale(c, r) ? '—' : `${cnt(c.roas)}%`}</span>${U.chStale(c, r) ? U.chBadge(c, r, ind) : `<span class="badge tone-${U.roasState(c.roas, ind)}" style="align-self:flex-start">${U.STATE_WORD[U.roasState(c.roas, ind)]}${dp == null ? '' : ` · 직전 기간 ${dp >= 0 ? '▲' : '▼'}${Math.abs(dp)}%p`}</span>`}</div>
       <div style="display:flex;flex-direction:column;gap:6px"><div class="bullet" data-tip="${esc(c.name)} · 광고비 ${won(c.cost)} → ${esc(ind.revLabel)} ${won(c.rev)}"><div class="z1" style="width:${p(ind.bep)}"></div><div class="z2" style="width:calc(${p(ind.target)} - ${p(ind.bep)})"></div><div class="z3" style="flex:1"></div><div class="bar" style="width:${p(c.roas)}"></div></div>
       <div class="scale"><span style="left:${p(ind.bep)}">손익분기 ${ind.bep}%</span><span style="left:${p(ind.target)}">목표 ${ind.target}%</span></div></div></div>`;
   }).join('');
@@ -159,14 +158,14 @@ const streak = (vals, pred) => { let n = 0; for (let i = vals.length - 1; i >= 0
 const lightsCard = (cx) => {
   const { ind, st } = cx, r = cx.rng('lights', 'weeks4'), rows = R.channelAgg(ind, r).filter((c) => !U.chStale(c, r));  // 데이터 미반영 매체는 진단 생략
   const cards = rows.map((c) => {
-    const j = U.judge(c.roas, ind), ws = U.weeklyRoas(ind.byChannel[c.id], r.to, 4);
+    const j = U.judgeFor(c.roas, ind, c), ws = U.weeklyRoas(ind.byChannel[c.id], r.to, 4);  // 매체별 조정 수단에 맞는 액션
     const run = j.s === 'good' ? `${streak(ws, (v) => v >= ind.target)}주 연속 목표 달성` : `${streak(ws, (v) => v < ind.target)}주 연속 목표 미달`;
     const sym = j.s === 'good' ? 'check' : j.s === 'warn' ? 'bulb' : 'trash';
     return `<div class="tile" style="gap:10px"><div style="display:flex;align-items:center;gap:12px"><span class="ico tone-${j.s}" style="border-radius:50%;width:44px;height:44px">${icon(sym, 20)}</span>
       <div><b>${esc(c.name)}</b><div class="sm">ROAS ${cnt(c.roas)}% · ${run}</div></div></div>
       <div class="alert"><span><b>권장 액션</b> · ${esc(j.act)}</span></div>
       <div class="sm num">최근 4주 ROAS ${U.roasList(ws)}% · 광고비 ${wonS(c.cost)} · ${esc(ind.convLabel)} ${cnt(c.conv)}${esc(ind.convUnit)} · ${esc(j.note)}</div>
-      <button type="button" class="link" data-page="home" data-sec="sec-inbox" style="align-self:flex-start">최적화 제안 보기 →</button></div>`;
+      ${c.lever === 'budget' ? '' : '<button type="button" class="link" data-page="home" data-sec="sec-inbox" style="align-self:flex-start">최적화 제안 보기 →</button>'}</div>`;
   }).join('');
   return card({ id: 'lights', title: '효율 진단', sub: '진단 → 권장 액션 · 같은 숫자는 항상 같은 진단', tools: rangeChip('lights', r, st),
     body: `<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${cards}</div>` });

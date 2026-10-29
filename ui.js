@@ -1,7 +1,7 @@
 'use strict';
 (() => {
 /* 공용 화면 조각 — 문자열 HTML 을 돌려준다. 페이지 파일(home·pages·creatives.js)과 app.js 가 window.UI 로 쓴다. */
-const { escT: esc, fmtShort, spark } = window.CH;
+const { escT: esc, fmtShort, spark, gauge } = window.CH;
 const R = window.RANGE;
 
 const won = (n) => `${Math.round(n || 0).toLocaleString('ko-KR')}원`;
@@ -50,13 +50,16 @@ const sumLabel = (ind) => (multi(ind) ? '매체 보고 합계' : ind.revLabel);
 /* 수동 CSV 매체(애드부스트)는 데이터가 늦게 들어온다 — 그 뒤 날짜는 0 이 아니라 '미반영'임을 알린다 */
 const staleNote = (ind) => (ind.channels || []).filter((c) => c.lastDate && ind.lastDate && c.lastDate < ind.lastDate)
   .map((c) => `${c.name} ${Number(c.lastDate.slice(5, 7))}/${Number(c.lastDate.slice(8, 10))}까지 반영`).join(' · ');
-/* 기간 안에 그 매체 데이터가 아직 안 들어왔으면(수동 CSV 매체) 0% 판정 대신 '미반영' */
+/* 선택 기간이 그 매체의 데이터 구간(첫날~마지막 날)과 안 겹치면 0% 판정 대신 '미반영' — 시작 전(애드부스트 9/22 전)과 반영 전(CSV 아직) 둘 다 */
 const mdS = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-const chStale = (c, r) => !!(c && c.lastDate && r && c.lastDate < r.from);
-const chPartial = (c, r) => !!(c && c.lastDate && r && c.lastDate >= r.from && c.lastDate < r.to);
+const chStale = (c, r) => !!(c && r && ((c.lastDate && c.lastDate < r.from) || (c.firstDate && c.firstDate > r.to)));
+const chPartial = (c, r) => !!(c && r && !chStale(c, r) && ((c.lastDate && c.lastDate >= r.from && c.lastDate < r.to) || (c.firstDate && c.firstDate > r.from && c.firstDate <= r.to)));
+const partialNote = (c, r) => [c.firstDate && c.firstDate > r.from ? `${mdS(c.firstDate)}부터` : '', c.lastDate && c.lastDate < r.to ? `${mdS(c.lastDate)}까지` : ''].filter(Boolean).join(' ') + ' 반영';
 const chBadge = (c, r, ind) => (chStale(c, r)
-  ? `<span class="badge tone-mute" data-tip="CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.">미반영 · ${mdS(c.lastDate)}까지</span>`
-  : roasBadge(c.roas, ind) + (chPartial(c, r) ? ` <span class="badge tone-mute">${mdS(c.lastDate)}까지 반영</span>` : ''));
+  ? (c.firstDate && c.firstDate > r.to
+    ? `<span class="badge tone-mute" data-tip="이 매체는 ${mdS(c.firstDate)}부터 집계를 시작했습니다. 그 전 기간은 데이터가 없어 판정하지 않습니다.">미반영 · ${mdS(c.firstDate)}부터 데이터</span>`
+    : `<span class="badge tone-mute" data-tip="CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.">미반영 · ${mdS(c.lastDate)}까지</span>`)
+  : roasBadge(c.roas, ind) + (chPartial(c, r) ? ` <span class="badge tone-mute">${partialNote(c, r)}</span>` : ''));
 const sumBadge = (ind) => (multi(ind) ? `<span class="badge tone-mute" data-tip="매체마다 귀속 기준이 달라 같은 구매가 중복될 수 있습니다. 판정은 성과 진단·매체별 화면에서 매체별로 합니다.">중복 귀속 가능 · 판정은 매체별${staleNote(ind) ? ` · ${esc(staleNote(ind))}` : ''}</span>` : null);
 const roasBadge = (roas, ind) => `<span class="badge tone-${roasState(roas, ind)}">ROAS ${cnt(roas)}% · ${STATE_WORD[roasState(roas, ind)]}</span>`;
 
@@ -95,7 +98,7 @@ const dateBar = (st, presetKeys = ['yesterday', 'd7', 'month', 'lastMonth']) => 
     <input id="g-from" class="inp" type="date" value="${rg.from}" min="${st.bounds.from}" max="${st.bounds.to}" data-gf="1"><span class="mu">~</span>
     <input class="inp" type="date" value="${rg.to}" min="${st.bounds.from}" max="${st.bounds.to}" data-gt="1" aria-label="종료일">
     <div class="seg" role="group" aria-label="기간 단축키">${btns}</div>
-    <span class="cmp">모든 카드에 적용 · 비교: 직전 같은 기간 ${R.fmtRange(prev)}</span></div>`;
+    <span class="cmp">모든 카드에 적용 · 비교: 직전 같은 기간 ${R.fmtRangeY(prev, rg.to.slice(0, 4))}</span></div>`;
 };
 
 const thumb = (ad, h, rank) => `<div class="img" style="height:${h}px">${ad.image ? `<img src="${esc(ad.image)}" alt="" loading="lazy">` : esc((ad.name || '').slice(0, 6))}${rank ? `<span class="rk">${rank}위</span>` : ''}</div>`;
@@ -116,6 +119,30 @@ const judge = (roas, ind) => {
   if (roas >= T / 3) return { s: 'crit', act: '입찰 −10% 하향 제안', note: `손익분기 ${ind.bep}% 미달` };
   return { s: 'crit', act: '입찰 −20% · 2주 연속이면 OFF 제안', note: '목표의 1/3 미만' };
 };
+/* 매체별 권장 액션 — 네이버(입찰·가중치)는 judge 그대로, 애드부스트처럼 입찰 수단이 없는 매체(lever=budget)는 일예산·상품 제외로 바꿔 말한다 */
+const BUDGET_ACT = {
+  good: (roas, ind) => (roas >= 1.5 * ind.target ? '일예산 증액 후보 (한계 ROAS 확인 후)' : '유지 · 일예산 증액 후보'),
+  warn: () => '유지 · 비용 상위 상품 점검 (시트 탭 ⑥)',
+  crit: () => '일예산 하향 · 비용 상위 상품 제외 검토 (시트 탭 ⑥)',
+};
+const judgeFor = (roas, ind, ch) => {
+  const j = judge(roas, ind);
+  return ch && ch.lever === 'budget' ? { ...j, act: BUDGET_ACT[j.s](roas, ind) } : j;
+};
+/* 월 목표 게이지 — 월 매출 목표가 있으면 매체 보고 합계 매출 기준. 없으면 ROAS 는 매체별로만 판정(합산 ROAS 로 판정하지 않는다) */
+const goalGauge = (ind, m) => {
+  const goal = ind.monthlyGoal, t = R.totals(ind, m);
+  const left = Math.max(0, R.spanDays({ from: m.to, to: R.monthEnd(m.from) }) - 1);
+  if (goal) {
+    return { title: `월 목표 달성률${multi(ind) ? ' (매체 보고 합계)' : ''}`, left, rev: t.rev, goal,
+      svg: gauge(pct(t.rev, goal), '월 목표 달성률', `${wonS(t.rev)} / ${wonS(goal)}`), foot: left ? `남은 ${left}일 · 하루 ${wonS(Math.max(0, (goal - t.rev) / left))} 필요` : '이번 달 마감' };
+  }
+  const rows = R.channelAgg(ind, m), main = rows[0] || { name: ind.revLabel, roas: t.roas }, stale = chStale(main, m);
+  const others = rows.slice(1).map((c) => `${c.name} ${chStale(c, m) ? '미반영' : `${cnt(c.roas)}%`}`).join(' · ');
+  return { title: `월 목표 ROAS 달성률${multi(ind) ? ` · ${main.name}` : ''}`, left, rev: t.rev, goal: null,
+    svg: gauge(stale ? 0 : pct(main.roas, ind.target), '월 목표 ROAS 달성률', `ROAS ${stale ? '미반영' : `${cnt(main.roas)}%`} / 목표 ${ind.target}%`),
+    foot: multi(ind) ? `${others} / 목표 ${ind.target}% · 판정은 매체별` : '월 매출 목표를 설정 카드에 넣으면 매출 기준으로 바뀝니다' };
+};
 /* 최근 n주 주간 ROAS (끝 날짜 기준 7일씩) */
 const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) => {
   const to = R.addDays(endDate, -7 * (n - 1 - i)), r = { from: R.addDays(to, -6), to };
@@ -123,5 +150,5 @@ const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) =>
 });
 const roasList = (ws) => ws.map((v) => (v == null ? '—' : Math.round(v).toLocaleString('ko-KR'))).join(' → ');
 
-window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chBadge };
+window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chBadge };
 })();
