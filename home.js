@@ -53,7 +53,7 @@ const kpis = (cx) => {
     const val = key === 'roas' ? t.roas : key === 'rev' ? t.rev : t.cost;
     const pv = key === 'roas' ? p.roas : key === 'rev' ? p.rev : p.cost;
     const series = R.daily(ind.days, r).map((x) => (key === 'roas' ? (x.cost ? (x.rev / x.cost) * 100 : 0) : key === 'rev' ? x.rev : x.cost));
-    const badge = key === 'roas' ? `<span class="badge tone-${U.roasState(val, ind)}">목표 ${ind.target}% · ${U.STATE_WORD[U.roasState(val, ind)]}</span>` : delta(val, pv, goodUp);
+    const badge = key === 'roas' ? (U.sumBadge(ind) || `<span class="badge tone-${U.roasState(val, ind)}">목표 ${ind.target}% · ${U.STATE_WORD[U.roasState(val, ind)]}</span>`) : delta(val, pv, goodUp);
     return kpi({ ic, tone, label, value: fmt(val), badge, sparkVals: series, sparkColor: color, tools: rangeChip(id, r, st) });
   };
   const m = cx.rng('goal', 'month'), mt = R.totals(ind, m);
@@ -62,11 +62,11 @@ const kpis = (cx) => {
   const left = Math.max(0, R.spanDays({ from: m.to, to: R.monthEnd(m.from) }) - 1);
   const need = goal && left ? Math.max(0, (goal - mt.rev) / left) : 0;
   const gaugeCard = `<div class="card" style="align-items:center">
-    <div class="card-h" style="align-self:stretch"><span class="mu">${goal ? '월 목표 달성률' : '월 목표 ROAS 달성률'}</span>${rangeChip('goal', m, st, { single: true, label: (r) => `${Number(r.from.slice(5, 7))}월` })}</div>
+    <div class="card-h" style="align-self:stretch"><span class="mu">${goal ? '월 목표 달성률' : '월 목표 ROAS 달성률'}${U.multi(ind) ? ' (매체 보고 합계)' : ''}</span>${rangeChip('goal', m, st, { single: true, label: (r) => `${Number(r.from.slice(5, 7))}월` })}</div>
     ${gauge(pctV, '월 목표 달성률', goal ? `${wonS(mt.rev)} / ${wonS(goal)}` : `ROAS ${cnt(mt.roas)}% / 목표 ${ind.target}%`)}
     <div class="sm" style="text-align:center">${goal ? (left ? `남은 ${left}일 · 하루 ${wonS(need)} 필요` : '이번 달 마감') : '월 매출 목표를 설정 카드에 넣으면 매출 기준으로 바뀝니다'}</div></div>`;
   return `<section class="grid kpis">
-    ${tile('k-rev', 'won', 'good', ind.revLabel, 'rev', (v) => won(v), true, 'var(--good)')}
+    ${tile('k-rev', 'won', 'good', U.sumLabel(ind), 'rev', (v) => won(v), true, 'var(--good)')}
     ${tile('k-roas', 'roas', 'info', 'ROAS', 'roas', (v) => `${cnt(v)}%`, true, 'var(--info)')}
     ${tile('k-cost', 'cost', 'warn', '광고비', 'cost', (v) => won(v), false, 'var(--warn)')}
     ${gaugeCard}</section>`;
@@ -125,7 +125,7 @@ const logCard = (cx) => {
 const alertsOf = (cx, p) => {
   const { ind, st } = cx, r = st.range, t = R.totals(ind, r), pv = R.totals(ind, R.prevOf(r)), out = [];
   const dRev = R.deltaPct(t.rev, pv.rev), dCost = R.deltaPct(t.cost, pv.cost);
-  if (dRev != null && dRev <= -30) out.push(['crit', '이상', `${esc(ind.revLabel)} 직전 기간 대비 ${dRev}%`]);
+  if (dRev != null && dRev <= -30) out.push(['crit', '이상', `${esc(U.sumLabel(ind))} 직전 기간 대비 ${dRev}%${U.staleNote(ind) ? ` (${esc(U.staleNote(ind))} — 이후 날짜는 미반영)` : ''}`]);
   if (dCost != null && dCost >= 50) out.push(['warn', '주의', `광고비 직전 기간 대비 +${dCost}%`]);
   const gaps = (ind.ops.timeline || []).filter((e) => e.type === 'gap' && R.inRange(e.date, r)).length;
   if (gaps) out.push(['crit', '누락', `데이터 수집 누락 ${gaps}일 (진단에서 제외)`]);
@@ -152,7 +152,8 @@ const rulesCard = (cx) => {
     if (x.mode === 'auto') {
       const other = evald.filter((d) => !fired.includes(d));
       if (fired.length >= 3 && other.length >= 3) {
-        const roasOn = (ds) => R.withRatios(ds.reduce((a, d) => { const day = ind.days.find((y) => y.date === d); return day ? { ...a, cost: a.cost + day.cost, rev: a.rev + day.adRev } : a; }, { cost: 0, clicks: 0, conv: 0, rev: 0 })).roas;
+        const src = (ind.byChannel && ind.byChannel[ind.groupChannel]) || ind.days.map((y) => ({ ...y, rev: y.adRev }));  // 규칙이 움직이는 매체 행만
+        const roasOn = (ds) => R.withRatios(ds.reduce((a, d) => { const day = src.find((y) => y.date === d); return day ? { ...a, cost: a.cost + day.cost, rev: a.rev + day.rev } : a; }, { cost: 0, clicks: 0, conv: 0, rev: 0 })).roas;
         const fr = roasOn(fired), orr = roasOn(other);
         eff += ` · 발동일 ROAS ${cnt(fr)}% vs 미발동일 ${cnt(orr)}% (${(fr / Math.max(orr, 1)).toFixed(2)}배)`;
       } else eff += ` · 효과 측정 중 (발동 ${fired.length}/3일)`;
@@ -181,11 +182,11 @@ const whyCard = (cx) => {
   const { ind, st } = cx, r = cx.rng('why');
   const rows = R.channelAgg(ind, r);
   const body = rows.map((c) => {
-    const j = U.judge(c.roas, ind), small = c.clicks < 10;
+    const j = U.judge(c.roas, ind), stale = U.chStale(c, r), small = stale || c.clicks < 10;
     const ws = U.weeklyRoas(ind.byChannel[c.id], r.to, 4);
     return `<div class="li"><span class="dot ${small ? 'mute' : j.s}"></span><div class="grow"><div class="t">${esc(c.name)} · ROAS ${cnt(c.roas)}%${small ? '' : ` → ${esc(j.act)}`}</div>
       <div class="sm">최근 4주 ROAS ${U.roasList(ws)}% · 클릭 ${cnt(c.clicks)} · ${esc(ind.convLabel)} ${cnt(c.conv)}${esc(ind.convUnit)} · 손익분기 ${ind.bep}% = 100 ÷ 마진 ${ind.margin}% · 목표 ${ind.target}%</div></div>
-      <span class="badge tone-${small ? 'mute' : j.s}">${small ? '표본 부족 · 판단 보류' : U.STATE_WORD[j.s]}</span></div>`;
+      <span class="badge tone-${small ? 'mute' : j.s}">${stale ? '데이터 미반영 · 판단 보류' : small ? '표본 부족 · 판단 보류' : U.STATE_WORD[j.s]}</span></div>`;
   }).join('');
   const first = rows[0], j0 = first ? U.judge(first.roas, ind) : null;
   return card({ id: 'why', title: '성과 진단', sub: '같은 숫자는 항상 같은 진단 (고정 규칙) · 클릭 10 미만은 보류',

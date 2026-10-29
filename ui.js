@@ -44,6 +44,20 @@ const delta = (now, prev, goodUp = true, label = '직전 기간') => {
 };
 const roasState = (roas, ind) => (roas >= ind.target ? 'good' : roas >= ind.bep ? 'warn' : 'crit');
 const STATE_WORD = { good: '목표 달성', warn: '목표 미달', crit: '손익분기 미달' };
+/* 매체가 2개 이상이면 합계 = 매체 보고 합계 — 매체마다 귀속 기준이 달라 같은 구매가 중복될 수 있으므로 합계로는 판정하지 않는다 */
+const multi = (ind) => (ind.channels || []).length > 1;
+const sumLabel = (ind) => (multi(ind) ? '매체 보고 합계' : ind.revLabel);
+/* 수동 CSV 매체(애드부스트)는 데이터가 늦게 들어온다 — 그 뒤 날짜는 0 이 아니라 '미반영'임을 알린다 */
+const staleNote = (ind) => (ind.channels || []).filter((c) => c.lastDate && ind.lastDate && c.lastDate < ind.lastDate)
+  .map((c) => `${c.name} ${Number(c.lastDate.slice(5, 7))}/${Number(c.lastDate.slice(8, 10))}까지 반영`).join(' · ');
+/* 기간 안에 그 매체 데이터가 아직 안 들어왔으면(수동 CSV 매체) 0% 판정 대신 '미반영' */
+const mdS = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+const chStale = (c, r) => !!(c && c.lastDate && r && c.lastDate < r.from);
+const chPartial = (c, r) => !!(c && c.lastDate && r && c.lastDate >= r.from && c.lastDate < r.to);
+const chBadge = (c, r, ind) => (chStale(c, r)
+  ? `<span class="badge tone-mute" data-tip="CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.">미반영 · ${mdS(c.lastDate)}까지</span>`
+  : roasBadge(c.roas, ind) + (chPartial(c, r) ? ` <span class="badge tone-mute">${mdS(c.lastDate)}까지 반영</span>` : ''));
+const sumBadge = (ind) => (multi(ind) ? `<span class="badge tone-mute" data-tip="매체마다 귀속 기준이 달라 같은 구매가 중복될 수 있습니다. 판정은 성과 진단·매체별 화면에서 매체별로 합니다.">중복 귀속 가능 · 판정은 매체별${staleNote(ind) ? ` · ${esc(staleNote(ind))}` : ''}</span>` : null);
 const roasBadge = (roas, ind) => `<span class="badge tone-${roasState(roas, ind)}">ROAS ${cnt(roas)}% · ${STATE_WORD[roasState(roas, ind)]}</span>`;
 
 /* 카드별 기간 칩 + 열린 경우 팝오버 */
@@ -109,5 +123,5 @@ const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) =>
 });
 const roasList = (ws) => ws.map((v) => (v == null ? '—' : Math.round(v).toLocaleString('ko-KR'))).join(' → ');
 
-window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, weeklyRoas, roasList };
+window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chBadge };
 })();

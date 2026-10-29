@@ -246,6 +246,24 @@ details.fold > summary::-webkit-details-marker { display: none; }
 .ch .area { opacity: .16; }
 .ch .dot { stroke: var(--card); stroke-width: 2; margin: 0; }
 .ch .pt { opacity: .85; stroke: var(--card); stroke-width: 2; }
+.ch .pv { font-size: 12px; font-weight: 700; paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+.ch .pv.zero { fill: var(--mute); }
+.ch .pv-dot { stroke: var(--card); stroke-width: 2; }
+.ch .pv-top { font-size: 13px; font-weight: 700; fill: var(--card); }
+.ch .val.top { fill: var(--good-ink); font-size: 13px; }
+.donut-wrap { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+.donut { width: 200px; height: 200px; flex-shrink: 0; }
+.donut .dn-track { fill: none; stroke: var(--track); }
+.donut .dn-seg { fill: none; }
+.donut .dn-l { font-size: 13px; fill: var(--mute); }
+.donut .dn-v { font-size: 22px; font-weight: 700; fill: var(--text); }
+.dn-leg { display: flex; flex-direction: column; gap: 14px; flex: 1; min-width: 220px; max-width: 420px; }
+.dn-row { display: grid; grid-template-columns: 14px 1fr auto; column-gap: 8px; align-items: center; }
+.dn-row .sw { width: 12px; height: 12px; border-radius: 3px; }
+.dn-row b { font-size: 15px; }
+.dn-row .pc { font-size: 22px; font-weight: 700; text-align: right; }
+.dn-row .sm { grid-column: 2 / 4; }
+@media (max-width: 760px) { .ch .pv { display: none; } .donut-wrap { justify-content: center; } }
 .ch .hit { fill: transparent; }
 .ch .row:hover path { filter: brightness(.9); }
 .spark { width: 100px; height: 30px; display: block; }

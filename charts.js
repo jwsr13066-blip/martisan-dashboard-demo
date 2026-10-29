@@ -19,30 +19,33 @@ const fmtShort = (n) => {
   return Math.round(n).toLocaleString('ko-KR');
 };
 const fmtPct = (n) => `${Math.round(n)}%`;
+/* 점 위 숫자용: 만 단위 소수 한 자리 (347,700 → 34.8만) */
+const fmtMan = (n) => (Math.abs(n) >= 1e4 ? `${(n / 1e4).toFixed(1).replace(/\.0$/, '')}만` : Math.round(n).toLocaleString('ko-KR'));
 
 const W = 720;
 
-const gridLines = (maxY, y, L, R, yFmt) => ticks(maxY).map((t) =>
-  `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="ax" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${yFmt(t)}</text>`).join('');
+const gridLines = (maxY, y, L, R, yFmt, VW = W) => ticks(maxY).map((t) =>
+  `<line class="grid" x1="${L}" x2="${VW - R}" y1="${y(t)}" y2="${y(t)}"/><text class="ax" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${yFmt(t)}</text>`).join('');
 
 /* 선 그래프: series [{name,color,values[],area}], xLabels[], band {lo,hi}, refs [{value,label}],
-   zones [{lo,hi,cls,label}] = 배경 구간 (손익분기 미달·목표 미달·목표 달성) */
-const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs = [], area = true, zones = [] }) => {
-  const H = height, L = 60, R = 16, T = 18, B = 28;
+   zones [{lo,hi,cls,label}] = 배경 구간 (손익분기 미달·목표 미달·목표 달성),
+   pointLabels = 숫자를 점마다 붙일 series 번호 (최고점은 '최고' 강조, 31개 넘으면 건너뛰며), width = viewBox 폭 */
+const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs = [], area = true, zones = [], pointLabels = null, width = W }) => {
+  const VW = width, H = height, L = 60, R = 16, T = pointLabels == null ? 18 : 44, B = 28;
   const n = xLabels.length;
   const rawMax = Math.max(...series.flatMap((s) => s.values), ...refs.map((r) => r.value), band ? band.hi : 0, ...zones.filter((z) => z.hi !== Infinity).map((z) => z.hi), 1);
   const maxY = niceMax(rawMax * 1.08);
-  const x = (i) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : (W - L - R) / 2);
+  const x = (i) => L + (n > 1 ? (i * (VW - L - R)) / (n - 1) : (VW - L - R) / 2);
   const y = (v) => T + (H - T - B) * (1 - v / maxY);
   const labelEvery = Math.ceil(n / 12);
   const xl = xLabels.map((l, i) => (i % labelEvery ? '' : `<text class="ax" x="${x(i)}" y="${H - 8}" text-anchor="middle">${escT(l)}</text>`)).join('');
-  const bandEl = band ? `<rect class="band" x="${L}" y="${y(band.hi)}" width="${W - L - R}" height="${y(band.lo) - y(band.hi)}"/>
+  const bandEl = band ? `<rect class="band" x="${L}" y="${y(band.hi)}" width="${VW - L - R}" height="${y(band.lo) - y(band.hi)}"/>
     <text class="ax band-l" x="${L + 6}" y="${y(band.hi) + 13}">${escT(band.label || '')}</text>` : '';
-  const refEls = refs.map((r) => `<line class="ref" x1="${L}" x2="${W - R}" y1="${y(r.value)}" y2="${y(r.value)}"/>
-    <text class="ax ref-l" x="${W - R}" y="${y(r.value) - 5}" text-anchor="end">${escT(r.label)}</text>`).join('');
+  const refEls = refs.map((r) => `<line class="ref" x1="${L}" x2="${VW - R}" y1="${y(r.value)}" y2="${y(r.value)}"/>
+    <text class="ax ref-l" x="${VW - R}" y="${y(r.value) - 5}" text-anchor="end">${escT(r.label)}</text>`).join('');
   const zoneEls = zones.map((z) => {
     const top = y(Math.min(z.hi, maxY)), bot = y(Math.max(z.lo, 0));
-    return bot > top ? `<rect class="zone ${z.cls}" x="${L}" y="${top}" width="${W - L - R}" height="${bot - top}"/>
+    return bot > top ? `<rect class="zone ${z.cls}" x="${L}" y="${top}" width="${VW - L - R}" height="${bot - top}"/>
       ${bot - top > 18 ? `<text class="ax zone-l ${z.cls}" x="${L + 6}" y="${top + 14}" text-anchor="start">${escT(z.label || '')}</text>` : ''}` : '';
   }).join('');
   const paths = series.map((s) => {
@@ -52,12 +55,26 @@ const lineChart = ({ series, xLabels, height = 240, yFmt = fmtShort, band, refs 
     const end = `<circle class="dot" cx="${x(n - 1)}" cy="${y(s.values[n - 1])}" r="4.5" style="fill:${s.color}"/>`;
     return ar + line + end;
   }).join('');
-  const w = (W - L - R) / Math.max(n - 1, 1);
+  const pv = (s) => {
+    if (!s) return '';
+    const vals = s.values, top = vals.indexOf(Math.max(...vals)), step = Math.ceil(n / 31);
+    return vals.map((v, i) => {
+      const px = x(i), py = y(v);
+      if (i === top && v > 0) {
+        const t = `최고 ${fmtMan(v)}원`, w = 16 + t.length * 8.4, bx = Math.min(Math.max(px - w / 2, L), VW - R - w);
+        return `<circle class="pv-dot" cx="${px}" cy="${py}" r="5" style="fill:${s.color}"/><rect class="pv-pill" x="${bx}" y="${py - 36}" width="${w}" height="24" rx="12" style="fill:${s.color}"/>
+          <text class="pv-top" x="${bx + w / 2}" y="${py - 19.5}" text-anchor="middle">${t}</text>`;
+      }
+      if (i % step) return '';
+      return `<circle class="pv-dot" cx="${px}" cy="${py}" r="3.5" style="fill:${s.color}"/><text class="pv${v ? '' : ' zero'}" x="${px}" y="${py - 10}" text-anchor="middle"${v ? ` style="fill:${s.color}"` : ''}>${fmtMan(v)}</text>`;
+    }).join('');
+  };
+  const w = (VW - L - R) / Math.max(n - 1, 1);
   const hits = xLabels.map((l, i) => {
     const tip = series.map((s) => `${s.name} ${yFmt(s.values[i])}`).join(' · ');
     return `<rect class="hit" x="${x(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B}" data-tip="${escT(l)} · ${escT(tip)}"/>`;
   }).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" class="ch" role="img">${zoneEls}${bandEl}${gridLines(maxY, y, L, R, yFmt)}${refEls}${paths}${xl}${hits}</svg>`;
+  return `<svg viewBox="0 0 ${VW} ${H}" class="ch" role="img">${zoneEls}${bandEl}${gridLines(maxY, y, L, R, yFmt, VW)}${refEls}${paths}${pointLabels == null ? '' : pv(series[pointLabels])}${xl}${hits}</svg>`;
 };
 
 /* 가로 막대: rows [{label,value,color,text,tip}], refs [{value,label,pos:'top'|'bottom'}] */
@@ -81,14 +98,16 @@ const barsH = ({ rows, valueFmt = fmtShort, refs = [], labelW = 120 }) => {
   return `<svg viewBox="0 0 ${W} ${H}" class="ch" role="img">${refEls}${bars}</svg>`;
 };
 
-/* 누적 세로 막대: groups [{label, parts:[{value,color}], tip}] */
-const barsV = ({ groups, yFmt = fmtShort, height = 240 }) => {
-  const H = height, L = 60, R = 16, T = 18, B = 28, n = groups.length;
+/* 누적 세로 막대: groups [{label, parts:[{value,color}], tip}], valueLabels = 막대 위 합계 숫자 (최고는 강조) */
+const barsV = ({ groups, yFmt = fmtShort, height = 240, valueLabels = false }) => {
+  const H = height, L = 60, R = 16, T = valueLabels ? 30 : 18, B = 28, n = groups.length;
   const maxV = niceMax(Math.max(...groups.map((g) => g.parts.reduce((a, p) => a + p.value, 0))) * 1.08);
   const slot = (W - L - R) / n, bw = Math.min(24, slot * 0.6);
   const y = (v) => T + (H - T - B) * (1 - v / maxV);
+  const sums = groups.map((g) => g.parts.reduce((a, p) => a + p.value, 0)), best = sums.indexOf(Math.max(...sums));
   const cols = groups.map((g, i) => {
     const cx = L + slot * i + slot / 2;
+    const vl = valueLabels && sums[i] > 0 ? `<text class="val${i === best ? ' top' : ''}" x="${cx}" y="${y(sums[i]) - 8}" text-anchor="middle">${fmtShort(sums[i])}원</text>` : '';
     const parts = g.parts.reduce((acc, p, j) => {
       const y0 = y(acc.sum + p.value), y1 = y(acc.sum);
       const last = j === g.parts.length - 1;
@@ -98,7 +117,7 @@ const barsV = ({ groups, yFmt = fmtShort, height = 240 }) => {
         : `M${cx - bw / 2},${y0} h${bw} v${h} h${-bw} z`;
       return { sum: acc.sum + p.value, svg: acc.svg + `<path d="${d}" style="fill:${p.color}"/>` };
     }, { sum: 0, svg: '' }).svg;
-    return `<g data-tip="${escT(g.tip)}">${parts}<text class="ax" x="${cx}" y="${H - 8}" text-anchor="middle">${escT(g.label)}</text>
+    return `<g data-tip="${escT(g.tip)}">${parts}${vl}<text class="ax" x="${cx}" y="${H - 8}" text-anchor="middle">${escT(g.label)}</text>
       <rect class="hit" x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}"/></g>`;
   }).join('');
   return `<svg viewBox="0 0 ${W} ${H}" class="ch" role="img">${gridLines(maxV, y, L, R, yFmt)}${cols}</svg>`;
@@ -132,6 +151,20 @@ const gauge = (pct, label, sub = '') => {
     <text class="g-num" x="100" y="92" text-anchor="middle">${Math.round(pct)}%</text>${sub ? `<text class="g-sub" x="100" y="114" text-anchor="middle">${escT(sub)}</text>` : ''}</svg>`;
 };
 
+/* 도넛: rows [{value,color,tip}], 가운데 label·value */
+const donut = ({ rows, label = '', value = '', size = 200, thick = 32 }) => {
+  const tot = rows.reduce((a, r) => a + r.value, 0), r = (size - thick) / 2, c = size / 2, circ = 2 * Math.PI * r;
+  const gap = rows.filter((x) => x.value > 0).length > 1 ? 3 : 0;
+  const segs = tot ? rows.reduce((acc, x) => {
+    const f = x.value / tot;
+    const el = f > 0 ? `<circle class="dn-seg" cx="${c}" cy="${c}" r="${r}" style="stroke:${x.color};stroke-width:${thick}" stroke-dasharray="${Math.max(f * circ - gap, 0.1)} ${circ}" stroke-dashoffset="${-acc.off * circ}" transform="rotate(-90 ${c} ${c})" data-tip="${escT(x.tip || '')}"/>` : '';
+    return { off: acc.off + f, svg: acc.svg + el };
+  }, { off: 0, svg: '' }).svg : '';
+  return `<svg viewBox="0 0 ${size} ${size}" class="donut" role="img" aria-label="${escT(label)} ${escT(value)}">
+    <circle class="dn-track" cx="${c}" cy="${c}" r="${r}" style="stroke-width:${thick}"/>${segs}
+    <text class="dn-l" x="${c}" y="${c - 6}" text-anchor="middle">${escT(label)}</text><text class="dn-v" x="${c}" y="${c + 20}" text-anchor="middle">${escT(value)}</text></svg>`;
+};
+
 /* 스파크라인 */
 const spark = (values, color, w = 120, h = 32) => {
   if (values.length < 2) return '';
@@ -142,5 +175,5 @@ const spark = (values, color, w = 120, h = 32) => {
     <path class="line" d="M${pts.join(' L')}" style="stroke:${color}"/><circle cx="${pts[n - 1].split(',')[0]}" cy="${pts[n - 1].split(',')[1]}" r="3" style="fill:${color}"/></svg>`;
 };
 
-window.CH = { lineChart, barsH, barsV, scatter, spark, gauge, fmtShort, fmtPct, escT };
+window.CH = { lineChart, barsH, barsV, scatter, spark, gauge, donut, fmtShort, fmtPct, fmtMan, escT };
 })();
