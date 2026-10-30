@@ -109,7 +109,7 @@ const channelCard = (cx, ch) => {
     ${U.hbars(groups.slice(0, 8).map((g) => ({ label: g.name, w: (g.rev / gMax) * 100, text: `${wonS(g.rev)} · ${cnt(g.conv)}${esc(ind.convUnit)}`, color: ch.color })))}</div>` : '';
   const an = R.creativeAnalysis({ ...ind, creatives: U.creativeSets(ind)[ch.id] || null }, r);  // 이 매체의 소재(또는 애드부스트 상품) 묶음
   const ads = an.rows.filter((a) => a.channelId === ch.id).sort((a, b) => b.rev - a.rev).slice(0, 5);
-  const top = ads.length ? `<div class="tile" style="gap:10px"><div class="card-h"><b>이 매체 ${ch.lever === 'budget' ? '상품' : '소재'} TOP 5</b><button type="button" class="link" data-page="creatives" data-adch="${esc(ch.id)}">소재 성과에서 전체 보기 →</button></div>
+  const top = ads.length ? `<div class="tile" style="gap:10px"><div class="card-h"><b>이 매체 ${ch.noun || '소재'} TOP 5</b><button type="button" class="link" data-page="creatives" data-adch="${esc(ch.id)}">소재 성과에서 전체 보기 →</button></div>
     <div class="gallery g5">${ads.map((a, i) => `<div class="mini">${U.thumb(a, 90)}<span class="nm" style="font-weight:500">${i + 1} · ${esc(a.name)}</span><span class="sm num">${wonS(a.rev)} · ${esc(ind.convLabel)} ${cnt(a.conv)} · ROAS ${cnt(a.roas)}%</span></div>`).join('')}</div>
     ${an.basis.fixed ? '<div class="note">소재 일별 데이터 수집 전이라 최근 28일 고정 수치입니다.</div>' : ''}</div>` : '';
   return card({ id, title: `<span style="display:inline-flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:4px;background:${ch.color}"></span>${esc(ch.name)}</span>`, sub: U.chBadge(c, r, ind), tools: rangeChip(id, r, st),
@@ -120,8 +120,9 @@ const channelCard = (cx, ch) => {
 
 const pageChannels = (cx) => {
   const { ind } = cx;
+  const nextNames = [...(ind.nextChannels || []), '카카오 모먼트', '쿠팡'];  // 설정 카드에서 아직 꺼진 매체(메타·구글) + 수집기 미개발 매체
   const next = ind.live ? `<section class="card s12 dash" style="flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap"><div><b>다음 매체 자리</b>
-    <div class="sm">파워링크 · 카카오 · 쿠팡 — 연동되는 순서대로 매체 카드와 왼쪽 메뉴 탭이 추가됩니다</div></div><span class="badge tone-mute">연동 대기</span></section>` : '';
+    <div class="sm">${esc(nextNames.join(' · '))} — 설정 카드에서 켜거나 연동되는 순서대로 매체 카드와 왼쪽 메뉴 탭이 추가됩니다</div></div><span class="badge tone-mute">연동 대기</span></section>` : '';
   return `${U.dateBar(cx.st)}<div class="grid">${compareCard(cx)}${ind.channels.map((ch) => channelCard(cx, ch)).join('')}${next}</div>`;
 };
 

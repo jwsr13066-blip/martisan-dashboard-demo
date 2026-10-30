@@ -8,12 +8,13 @@ const SORTS = { rev: ['매출순', (a, b) => b.rev - a.rev], roas: ['ROAS순', (
 /* 매체 선택 — 쇼핑검색(소재)·애드부스트(상품). 상단 세그먼트로 고르고, 세 카드가 그 매체 묶음으로 계산된다 */
 const chanOf = (cx) => { const { ind, st } = cx, by = U.creativeSets(ind), list = ind.channels.filter((c) => by[c.id]); return list.find((c) => c.id === st.adChannel) || list[0] || null; };
 const indC = (cx) => { const ch = chanOf(cx); return ch ? { ...cx.ind, creatives: U.creativeSets(cx.ind)[ch.id] } : cx.ind; };
-const NOUN = (cx) => { const ch = chanOf(cx); return ch && ch.lever === 'budget' ? '상품' : '소재'; };
+const NOUN = (cx) => { const ch = chanOf(cx); return (ch && ch.noun) || '소재'; };
 const chanSeg = (cx) => {
   const { ind } = cx, by = U.creativeSets(ind), list = ind.channels.filter((c) => by[c.id]), cur = chanOf(cx);
   if (list.length < 2) return '';
   const dot = (c) => `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c.color};margin-right:6px"></span>`;
-  const note = cur && cur.lever === 'budget' ? `상품 단위 보고서(CSV)라 상품별로 봅니다 · 쇼핑검색에 같은 상품이 있으면 이미지·AI 라벨을 같이 씁니다${ind.creativesBy && ind.creativesBy[cur.id] ? ` · 매칭 ${ind.creativesBy[cur.id].matched || 0}/${ind.creativesBy[cur.id].ads.length}개` : ''}` : '소재별 클릭·광고비·구매완료 (네이버 검색광고 API)';
+  const set = cur ? by[cur.id] : null;
+  const note = set && set.note ? set.note : cur && cur.source === 'csv' ? `상품 단위 보고서(CSV)라 상품별로 봅니다 · 쇼핑검색에 같은 상품이 있으면 이미지·AI 라벨을 같이 씁니다${set ? ` · 매칭 ${set.matched || 0}/${set.ads.length}개` : ''}` : '소재별 클릭·광고비·구매완료 (네이버 검색광고 API)';
   return `<div class="datebar"><span class="mu">매체</span><div class="seg" role="group" aria-label="매체">${list.map((c) => `<button type="button" data-adch="${esc(c.id)}" aria-pressed="${!!cur && cur.id === c.id}">${dot(c)}${esc(c.name)}</button>`).join('')}</div><span class="cmp">${esc(note)}</span></div>`;
 };
 
@@ -75,8 +76,9 @@ const suggCard = (cx) => {
   const col = (ic, tone, title, hint, items) => `<div><div style="display:flex;align-items:center;gap:10px"><span class="ico tone-${tone}">${icon(ic, 18)}</span><div><b>${title} ${items.length}개</b><div class="sm">${hint}</div></div></div>
     ${items.length ? `<ul>${items.map((t) => `<li>${esc(t.text)}</li>`).join('')}</ul>` : '<div class="sm">해당 없음</div>'}</div>`;
   const s = an.sugg;
-  return card({ id: 'map', title: `${NOUN(cx)} 기획 제안`, sub: an.lever === 'budget' ? '제안만, 실행은 안 함 · 상품 등록·제외는 광고센터에서 직접' : '제안만, 실행은 안 함 · 제작 브리프는 클로드 세션에서, OFF는 최적화 제안 승인 흐름으로', tools: rangeChip('map', r, st),
-    body: `<div class="sugg">${col('plus', 'good', '확장', `성과가 좋은데 ${NOUN(cx)}가 적은 조합`, s.expand)}${col('bulb', 'info', '테스트', '강한 요소끼리 아직 안 합쳐본 조합', s.test)}${col('trash', 'crit', an.lever === 'budget' ? '제외 후보' : 'OFF 후보', '클릭은 받는데 구매 0', s.off)}</div>` });
+  const subMap = an.noun === '상품' ? '제안만, 실행은 안 함 · 상품 등록·제외는 광고센터에서 직접' : an.lever === 'budget' ? '제안만, 실행은 안 함 · 제작 브리프는 클로드 세션에서, OFF는 광고관리자에서 직접' : '제안만, 실행은 안 함 · 제작 브리프는 클로드 세션에서, OFF는 최적화 제안 승인 흐름으로';
+  return card({ id: 'map', title: `${NOUN(cx)} 기획 제안`, sub: subMap, tools: rangeChip('map', r, st),
+    body: `<div class="sugg">${col('plus', 'good', '확장', `성과가 좋은데 ${NOUN(cx)}가 적은 조합`, s.expand)}${col('bulb', 'info', '테스트', '강한 요소끼리 아직 안 합쳐본 조합', s.test)}${col('trash', 'crit', an.noun === '상품' ? '제외 후보' : 'OFF 후보', '클릭은 받는데 구매 0', s.off)}</div>` });
 };
 
 const pageCreatives = (cx) => `${U.dateBar(cx.st, ['d7', 'd28', 'month', 'lastMonth'])}${chanSeg(cx)}<div class="grid">${rankCard(cx)}${axesCards(cx)}${suggCard(cx)}</div>`;

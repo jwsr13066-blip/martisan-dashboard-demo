@@ -22,13 +22,14 @@ const iso = (d) => d.toISOString().slice(0, 10);
 const dateAt = (offset) => new Date(END_DATE.getTime() - offset * 864e5);
 const ago = (n) => iso(dateAt(n));
 
+/* lever: bid=입찰·가중치 / budget=일예산·소재 OFF(메타·애드부스트) · noun: 소재 성과 화면에서 부르는 이름 · note: 매체 선택 안내 */
 const CHANNELS = {
-  naver_sa: { id: 'naver_sa', name: '네이버 파워링크', color: 'var(--c1)' },
-  shopping: { id: 'shopping', name: '네이버 쇼핑검색', color: 'var(--c2)' },
-  meta: { id: 'meta', name: '메타', color: 'var(--c3)' },
-  google: { id: 'google', name: '구글', color: 'var(--c4)' },
-  adboost: { id: 'adboost', name: '애드부스트', color: 'var(--c5)' },
-  place: { id: 'place', name: '네이버 플레이스', color: 'var(--c2)' },
+  naver_sa: { id: 'naver_sa', name: '네이버 파워링크', color: 'var(--c1)', lever: 'bid', noun: '소재', note: '키워드 광고 소재별 클릭·광고비·구매완료 (네이버 검색광고 API)' },
+  shopping: { id: 'shopping', name: '네이버 쇼핑검색', color: 'var(--c2)', lever: 'bid', noun: '소재', note: '소재별 클릭·광고비·구매완료 (네이버 검색광고 API)' },
+  meta: { id: 'meta', name: '메타 (페이스북·인스타그램)', color: 'var(--c3)', lever: 'budget', noun: '소재', note: '광고별 일별 지출·링크 클릭·구매 (메타 마케팅 API) · 구매 전환만, 장바구니 제외' },
+  google: { id: 'google', name: '구글 애즈', color: 'var(--c4)', lever: 'bid', noun: '소재', note: '광고별 일별 비용·클릭·전환 (Google Ads API) · 구매 유형 전환만' },
+  adboost: { id: 'adboost', name: '네이버 애드부스트', color: 'var(--c5)', lever: 'budget', noun: '상품', source: 'csv', hint: '시트 탭 ⑥', note: '상품 단위 보고서(CSV)라 상품별로 봅니다' },
+  place: { id: 'place', name: '네이버 플레이스', color: 'var(--c2)', lever: 'bid', noun: '소재', note: '플레이스 광고 소재별 클릭·광고비·예약' },
 };
 
 /* L(카테고리, 모티브[], 메시지[], 타깃, 소재, 가격대, 연출, 배경, 색감, 구성) */
@@ -68,6 +69,7 @@ const INDUSTRIES = {
       ['후원 스토리 영상 A', 'meta', 0.40, 1.3, '메타', null],
       ['언박싱 릴스 B', 'meta', 0.35, 0.55, '메타', null],
       ['착용샷 카루셀 C', 'meta', 0.25, 1.05, '메타', null],
+      ['브랜드 검색 · 실버 팔찌', 'google', 0.55, 1.4, '구글', null], ['쇼핑 광고 · 반지', 'google', 0.45, 0.8, '구글', null],
     ],
   },
   local: {
@@ -132,6 +134,16 @@ const genCreatives = (ind, byChannel, rand) => {
   }
   return { coverage: { from: ago(AD_DAYS - 1), to: ago(0) }, ads, daily, totals28: null, window28: null, labeled_images: ads.filter((a) => a.labels).length };
 };
+
+/* 매체별 소재 묶음 — 실데이터(live.js creativesBy)와 같은 모양. 소재 성과 화면의 매체 선택이 여기서 나온다 */
+const splitByChannel = (ind, creatives) => Object.fromEntries(ind.channels.map((ch) => {
+  const idx = creatives.ads.map((a, i) => (a.channelId === ch.id ? i : -1)).filter((i) => i >= 0);
+  if (!idx.length) return null;
+  const remap = Object.fromEntries(idx.map((i, k) => [i, k]));
+  const daily = Object.fromEntries(Object.entries(creatives.daily).map(([d, rows]) => [d, rows.filter((r) => r[0] in remap).map(([i, ...v]) => [remap[i], ...v])]).filter(([, rows]) => rows.length));
+  const ads = idx.map((i) => creatives.ads[i]);
+  return [ch.id, { ...creatives, ads, daily, lever: ch.lever, noun: ch.noun, note: ch.note, channel: ch.id, labeled_images: ads.filter((a) => a.labels).length }];
+}).filter(Boolean));
 
 /* 그룹 = 그룹 채널 소재들의 구매·매출 합 */
 const genGroups = (ind, creatives) => {
@@ -217,8 +229,9 @@ const buildIndustry = (key) => {
     return { date: rows[0].date, cost: sum('cost'), clicks: sum('clicks'), conv: sum('conv'), adRev, total: Math.max(total, adRev) };
   });
   const creatives = genCreatives(ind, byChannel, rand);
+  const creativesBy = splitByChannel(ind, creatives);
   const bep = Math.round((100 / ind.margin) * 100);
-  return { ...ind, live: false, byChannel, days, bep, target: Math.round((bep * 1.2) / 10) * 10, creatives, ...genGroups(ind, creatives),
+  return { ...ind, live: false, byChannel, days, bep, target: Math.round((bep * 1.2) / 10) * 10, creatives: creativesBy[ind.channels[0].id] || creatives, creativesBy, ...genGroups(ind, creatives),
     firstDate: days[0].date, lastDate: days[days.length - 1].date, ops: opsFor(key) };
 };
 

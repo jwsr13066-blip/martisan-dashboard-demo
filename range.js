@@ -148,8 +148,7 @@ const comboOf = (row) => {
 };
 const tagKey = (ax, v) => `${ax}\u0001${v}`;
 
-const suggestions = (rows, agg, avg, lever = 'bid') => {  // lever=budget(애드부스트)는 입찰 대신 상품 등록·제외로 말한다
-  const noun = lever === 'budget' ? '상품' : '소재';
+const suggestions = (rows, agg, avg, lever = 'bid', noun = lever === 'budget' ? '상품' : '소재') => {  // noun=상품(애드부스트)은 등록·제외, 소재(메타 등 budget)는 OFF·교체로 말한다
   const strong = Object.entries(agg).flatMap(([ax, a]) => a.values.filter((v) => !v.hold && (v.mult || 0) >= GUARD.GOOD_MULT && !GENERIC.has(v.value)).map((v) => [ax, v]))
     .sort((a, b) => (b[1].mult || 0) - (a[1].mult || 0));
   const combos = new Map();
@@ -160,7 +159,7 @@ const suggestions = (rows, agg, avg, lever = 'bid') => {  // lever=budget(애드
     if (GENERIC.has(m) || !(rs.length >= 1 && rs.length <= 2 && t.clicks >= GUARD.MIN_CLK && avg && roas / avg >= GUARD.GOOD_MULT)) return null;
     const combo = `'${m}' 모티브${GENERIC.has(s) ? '' : ` × '${s}' 메시지`}`;
     return { motif: m, message: s, n: rs.length, roas: r0(roas), mult: r2(roas / avg), example: rs[0].name,
-      text: `${combo} · ${noun} ${rs.length}개뿐인데 ROAS ${r0(roas).toLocaleString('ko-KR')}% (평균의 ${(roas / avg).toFixed(1)}배) → ${lever === 'budget' ? '같은 조합 상품 추가 등록' : '같은 조합 상품 소재 확장'}` };
+      text: `${combo} · ${noun} ${rs.length}개뿐인데 ROAS ${r0(roas).toLocaleString('ko-KR')}% (평균의 ${(roas / avg).toFixed(1)}배) → ${noun === '상품' ? '같은 조합 상품 추가 등록' : '같은 조합 상품 소재 확장'}` };
   }).filter(Boolean).sort((a, b) => b.mult - a.mult).slice(0, 5);
   const tried = new Set();
   rows.forEach((r) => {
@@ -178,7 +177,7 @@ const suggestions = (rows, agg, avg, lever = 'bid') => {  // lever=budget(애드
   }));
   const off = rows.filter((r) => r.clicks >= GUARD.MIN_CLK && r.conv === 0).sort((a, b) => b.cost - a.cost).slice(0, 5)
     .map((r) => ({ id: r.id, name: r.name, cost: r.cost, clk: r.clicks,
-      text: `${r.name.slice(0, 28)} · 클릭 ${r.clicks}·광고비 ${Math.round(r.cost).toLocaleString('ko-KR')}원에 구매 0 → ${lever === 'budget' ? '광고센터에서 상품 제외 후보' : '입찰 하향 또는 OFF 후보'}` }));
+      text: `${r.name.slice(0, 28)} · 클릭 ${r.clicks}·광고비 ${Math.round(r.cost).toLocaleString('ko-KR')}원에 구매 0 → ${noun === '상품' ? '광고센터에서 상품 제외 후보' : lever === 'budget' ? 'OFF 또는 소재 교체 후보' : '입찰 하향 또는 OFF 후보'}` }));
   return { expand, test, off, strong: strong.slice(0, 6).map(([ax, v]) => ({ axis: AXES[ax], value: v.value, mult: v.mult, share: v.share })) };
 };
 
@@ -190,8 +189,8 @@ const creativeAnalysis = (ind, r) => {
   const lt = labeled.reduce(add, ZERO);
   const avg = lt.cost ? (lt.rev / lt.cost) * 100 : 0;
   const axes = labeled.length ? axesAgg(labeled, avg, lt.rev) : null;
-  const lever = (ind.creatives && ind.creatives.lever) || 'bid';
-  return { rows: active, all: rows, basis, lever, total: { ...withRatios(lt), ads: labeled.length }, adTotal: { ...t, ads: active.length }, avg, axes, sugg: axes ? suggestions(labeled, axes, avg, lever) : null };
+  const lever = (ind.creatives && ind.creatives.lever) || 'bid', noun = (ind.creatives && ind.creatives.noun) || (lever === 'budget' ? '상품' : '소재');
+  return { rows: active, all: rows, basis, lever, noun, total: { ...withRatios(lt), ads: labeled.length }, adTotal: { ...t, ads: active.length }, avg, axes, sugg: axes ? suggestions(labeled, axes, avg, lever, noun) : null };
 };
 
 window.RANGE = {

@@ -58,7 +58,7 @@ const partialNote = (c, r) => [c.firstDate && c.firstDate > r.from ? `${mdS(c.fi
 const chBadge = (c, r, ind) => (chStale(c, r)
   ? (c.firstDate && c.firstDate > r.to
     ? `<span class="badge tone-mute" data-tip="이 매체는 ${mdS(c.firstDate)}부터 집계를 시작했습니다. 그 전 기간은 데이터가 없어 판정하지 않습니다.">미반영 · ${mdS(c.firstDate)}부터 데이터</span>`
-    : `<span class="badge tone-mute" data-tip="CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.">미반영 · ${mdS(c.lastDate)}까지</span>`)
+    : `<span class="badge tone-mute" data-tip="${c.source === 'csv' ? 'CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.' : `이 매체는 ${mdS(c.lastDate)}까지 수집됐습니다. 수집기가 매일 아침 갱신하며, 열쇠가 만료됐으면 설치 문서대로 다시 등록합니다.`}">미반영 · ${mdS(c.lastDate)}까지</span>`)
   : roasBadge(c.roas, ind) + (chPartial(c, r) ? ` <span class="badge tone-mute">${partialNote(c, r)}</span>` : ''));
 const sumBadge = (ind) => (multi(ind) ? `<span class="badge tone-mute" data-tip="매체마다 귀속 기준이 달라 같은 구매가 중복될 수 있습니다. 판정은 성과 진단·매체별 화면에서 매체별로 합니다.">중복 귀속 가능 · 판정은 매체별${staleNote(ind) ? ` · ${esc(staleNote(ind))}` : ''}</span>` : null);
 const roasBadge = (roas, ind) => `<span class="badge tone-${roasState(roas, ind)}">ROAS ${cnt(roas)}% · ${STATE_WORD[roasState(roas, ind)]}</span>`;
@@ -119,15 +119,16 @@ const judge = (roas, ind) => {
   if (roas >= T / 3) return { s: 'crit', act: '입찰 −10% 하향 제안', note: `손익분기 ${ind.bep}% 미달` };
   return { s: 'crit', act: '입찰 −20% · 2주 연속이면 OFF 제안', note: '목표의 1/3 미만' };
 };
-/* 매체별 권장 액션 — 네이버(입찰·가중치)는 judge 그대로, 애드부스트처럼 입찰 수단이 없는 매체(lever=budget)는 일예산·상품 제외로 바꿔 말한다 */
+/* 매체별 권장 액션 — 네이버(입찰·가중치)는 judge 그대로, 입찰 수단이 없는 매체(lever=budget: 애드부스트·메타)는 일예산·상품/소재 정리로 바꿔 말한다.
+   noun(상품|소재)·hint(참고 위치)는 빌더가 매체마다 싣는다 */
 const BUDGET_ACT = {
   good: (roas, ind) => (roas >= 1.5 * ind.target ? '일예산 증액 후보 (한계 ROAS 확인 후)' : '유지 · 일예산 증액 후보'),
-  warn: () => '유지 · 비용 상위 상품 점검 (시트 탭 ⑥)',
-  crit: () => '일예산 하향 · 비용 상위 상품 제외 검토 (시트 탭 ⑥)',
+  warn: (roas, ind, ch) => `유지 · 비용 상위 ${ch.noun || '상품'} 점검${ch.hint ? ` (${ch.hint})` : ''}`,
+  crit: (roas, ind, ch) => `일예산 하향 · 비용 상위 ${ch.noun || '상품'} ${ch.noun === '소재' ? 'OFF·교체' : '제외'} 검토${ch.hint ? ` (${ch.hint})` : ''}`,
 };
 const judgeFor = (roas, ind, ch) => {
   const j = judge(roas, ind);
-  return ch && ch.lever === 'budget' ? { ...j, act: BUDGET_ACT[j.s](roas, ind) } : j;
+  return ch && ch.lever === 'budget' ? { ...j, act: BUDGET_ACT[j.s](roas, ind, ch) } : j;
 };
 /* 월 목표 게이지 — 월 매출 목표가 있으면 매체 보고 합계 매출 기준. 없으면 ROAS 는 매체별로만 판정(합산 ROAS 로 판정하지 않는다) */
 const goalGauge = (ind, m) => {
