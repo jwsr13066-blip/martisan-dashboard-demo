@@ -52,11 +52,14 @@ const staleNote = (ind) => (ind.channels || []).filter((c) => c.lastDate && ind.
   .map((c) => `${c.name} ${Number(c.lastDate.slice(5, 7))}/${Number(c.lastDate.slice(8, 10))}까지 반영`).join(' · ');
 /* 선택 기간이 그 매체의 데이터 구간(첫날~마지막 날)과 안 겹치면 0% 판정 대신 '미반영' — 시작 전(애드부스트 9/22 전)과 반영 전(CSV 아직) 둘 다 */
 const mdS = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-const chStale = (c, r) => !!(c && r && ((c.lastDate && c.lastDate < r.from) || (c.firstDate && c.firstDate > r.to)));
+/* 날짜가 하나도 없는 매체 = 설정 카드에서 켰지만 아직 수집된 데이터가 없음(열쇠 미등록·API 거부) → 어느 기간이든 미반영 */
+const chEmpty = (c) => !!(c && !c.firstDate && !c.lastDate);
+const chStale = (c, r) => !!(c && r && (chEmpty(c) || (c.lastDate && c.lastDate < r.from) || (c.firstDate && c.firstDate > r.to)));
 const chPartial = (c, r) => !!(c && r && !chStale(c, r) && ((c.lastDate && c.lastDate >= r.from && c.lastDate < r.to) || (c.firstDate && c.firstDate > r.from && c.firstDate <= r.to)));
 const partialNote = (c, r) => [c.firstDate && c.firstDate > r.from ? `${mdS(c.firstDate)}부터` : '', c.lastDate && c.lastDate < r.to ? `${mdS(c.lastDate)}까지` : ''].filter(Boolean).join(' ') + ' 반영';
 const chBadge = (c, r, ind) => (chStale(c, r)
-  ? (c.firstDate && c.firstDate > r.to
+  ? chEmpty(c) ? '<span class="badge tone-mute" data-tip="설정 카드에서 켰지만 아직 수집된 데이터가 없습니다. 열쇠(GitHub Secrets) 등록 여부와 Actions dashboard 로그의 수집기 줄을 확인하세요.">미반영 · 수집된 데이터 없음</span>'
+  : (c.firstDate && c.firstDate > r.to
     ? `<span class="badge tone-mute" data-tip="이 매체는 ${mdS(c.firstDate)}부터 집계를 시작했습니다. 그 전 기간은 데이터가 없어 판정하지 않습니다.">미반영 · ${mdS(c.firstDate)}부터 데이터</span>`
     : `<span class="badge tone-mute" data-tip="${c.source === 'csv' ? 'CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.' : `이 매체는 ${mdS(c.lastDate)}까지 수집됐습니다. 수집기가 매일 아침 갱신하며, 열쇠가 만료됐으면 설치 문서대로 다시 등록합니다.`}">미반영 · ${mdS(c.lastDate)}까지</span>`)
   : roasBadge(c.roas, ind) + (chPartial(c, r) ? ` <span class="badge tone-mute">${partialNote(c, r)}</span>` : ''));
