@@ -21,12 +21,22 @@
     ? { ...cr, ads: cr.ads.map((a) => ({ ...a, channelId: ch0 })) }
     : null;
 
+  /* 애드부스트 상품별(소재 성과 화면) — 쇼핑검색 소재와 같은 모양, 매체별로 따로 */
+  const advCh = channels.find((c) => c.lever === 'budget');
+  const ca = live.creatives_adv;
+  const srcById = Object.fromEntries(((creatives && creatives.ads) || []).map((a) => [a.id, a]));  // 같은 상품의 쇼핑검색 소재 → 이미지·AI 라벨 재사용
+  const withSrc = (a) => { const s = a.src ? srcById[a.src] : null; return { ...a, channelId: advCh.id, image: s ? s.image : '', price: s ? s.price : null, labels: s ? s.labels : null }; };
+  const creativesAdv = advCh && ca && ca.ads && ca.ads.length
+    ? { ...ca, ads: ca.ads.map(withSrc), labeled_images: ca.ads.filter((a) => { const s = a.src ? srcById[a.src] : null; return s && s.labels && s.labels.shot && s.labels.shot !== '미라벨'; }).length }
+    : null;
+  const creativesBy = { ...(creatives ? { [ch0]: creatives } : {}), ...(creativesAdv ? { [advCh.id]: creativesAdv } : {}) };
+
   const cl = live.client;
   const industry = {
     id: 'live', brand: cl.name, type: cl.basis, live: true,
     revLabel: cl.rev_label, convLabel: cl.conv_label, convUnit: cl.conv_unit, margin: cl.margin, bep: cl.bep, target: cl.target,
     monthlyGoal: cl.monthly_goal || null, totalLabel: cl.total_label || '스토어 전체 매출', theme: cl.theme || 'cream',
-    channels, byChannel, days, creatives, groupChannel: ch0,
+    channels, byChannel, days, creatives, creativesBy, groupChannel: ch0,
     groups: (live.groups && live.groups.groups) || [], groupDaily: (live.groups && live.groups.daily) || {},
     firstDate: dates[0], lastDate: live.source_last_date || dates[dates.length - 1],
     ops: { approvals: live.approvals, history: live.history, timeline: live.timeline, rules: live.rules || null, weather: live.weather || null,

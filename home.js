@@ -172,7 +172,7 @@ const topCreatives = (cx) => {
   const top = an.rows.slice().sort((a, b) => b.rev - a.rev).slice(0, 3);
   if (!top.length) return '';
   const fixed = an.basis.fixed ? ' · 최근 28일 고정 (일별 소재 데이터 수집 전)' : an.basis.partial ? ` · 소재 데이터 ${R.fmtRange(an.basis.coverage)} 범위만` : '';
-  return card({ id: 'top3', title: '매출 상위 소재 TOP 3', sub: fixed, tools: `${rangeChip('top3', r, st)}<button type="button" class="link" data-page="creatives">소재 성과 전체 →</button>`,
+  return card({ id: 'top3', title: `매출 상위 소재 TOP 3${Object.keys(U.creativeSets(ind)).length > 1 ? ` · ${esc((ind.channels[0] || {}).name || '')}` : ''}`, sub: fixed, tools: `${rangeChip('top3', r, st)}<button type="button" class="link" data-page="creatives">소재 성과 전체 →</button>`,
     body: `<div class="tops">${top.map((a, i) => `<div style="display:flex;gap:12px;align-items:center;min-width:0">
       <div style="width:76px;flex-shrink:0">${U.thumb(a, 76)}</div><div style="display:flex;flex-direction:column;gap:4px;min-width:0">
       <div class="nm" style="font-weight:500">${i + 1}위 · ${esc(a.name)}</div><div class="sm num">${wonS(a.rev)} · ${esc(ind.convLabel)} ${cnt(a.conv)} · ROAS ${cnt(a.roas)}%</div>${U.labelChips(a.labels, 2)}</div></div>`).join('')}</div>` });

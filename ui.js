@@ -143,6 +143,10 @@ const goalGauge = (ind, m) => {
     svg: gauge(stale ? 0 : pct(main.roas, ind.target), '월 목표 ROAS 달성률', `ROAS ${stale ? '미반영' : `${cnt(main.roas)}%`} / 목표 ${ind.target}%`),
     foot: multi(ind) ? `${others} / 목표 ${ind.target}% · 판정은 매체별` : '월 매출 목표를 설정 카드에 넣으면 매출 기준으로 바뀝니다' };
 };
+/* 매체별 소재/상품 데이터 묶음 — {매체ID: creatives}. 샘플(단일)은 첫 매체에 붙인다 */
+const creativeSets = (ind) => ind.creativesBy || (ind.creatives ? { [ind.groupChannel || (ind.channels[0] || {}).id]: ind.creatives } : {});
+/* 애드부스트 상품 판정 배지 (시트 스크립트 ADV_JUDGE 그대로) */
+const judgeBadge = (j) => (j ? `<span class="badge tone-${/제외/.test(j) ? 'crit' : /유지/.test(j) ? 'good' : 'mute'}">${esc(j)}</span>` : '');
 /* 최근 n주 주간 ROAS (끝 날짜 기준 7일씩) */
 const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) => {
   const to = R.addDays(endDate, -7 * (n - 1 - i)), r = { from: R.addDays(to, -6), to };
@@ -150,5 +154,5 @@ const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) =>
 });
 const roasList = (ws) => ws.map((v) => (v == null ? '—' : Math.round(v).toLocaleString('ko-KR'))).join(' → ');
 
-window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chBadge };
+window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chBadge, creativeSets, judgeBadge };
 })();

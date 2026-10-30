@@ -30,7 +30,7 @@ const initialFor = (key) => {
 let state = {
   ...initialFor(LIVE ? 'live' : 'commerce'), page: 'home', themeOpen: false, approving: false,
   theme: store.get(THEME_KEY) || (LIVE ? D.DATA.live.theme : 'cream') || 'cream',
-  today: LIVE ? kstToday() : D.END_DATE, ruleArm: null, ruleBusy: false, ruleMsg: {}, inboxAll: false, logAll: false, whyOpen: false, tableOpen: false, adSort: 'rev', adAll: false, axis: 'background', trendUnit: 'week',
+  today: LIVE ? kstToday() : D.END_DATE, ruleArm: null, ruleBusy: false, ruleMsg: {}, adChannel: null, inboxAll: false, logAll: false, whyOpen: false, tableOpen: false, adSort: 'rev', adAll: false, axis: 'background', trendUnit: 'week',
 };
 
 /* 카드 기본 기간 종류 → 실제 기간 */
@@ -157,7 +157,8 @@ const onClick = (ev) => {
   const q = (sel) => t.closest(sel);
   let b;
   if ((b = q('[data-ind]'))) return setState({ ...initialFor(b.dataset.ind), page: state.page });
-  if ((b = q('[data-page]'))) { ev.preventDefault(); const sec = b.dataset.sec; return setState({ ...base, page: b.dataset.page }, () => (sec ? scrollTo(sec) : window.scrollTo({ top: 0 }))); }
+  if ((b = q('[data-page]'))) { ev.preventDefault(); const sec = b.dataset.sec; return setState({ ...base, page: b.dataset.page, ...(b.dataset.adch ? { adChannel: b.dataset.adch } : {}) }, () => (sec ? scrollTo(sec) : window.scrollTo({ top: 0 }))); }
+  if ((b = q('[data-adch]'))) return setState({ ...base, adChannel: b.dataset.adch });
   if ((b = q('[data-chip]'))) return setState({ chipOpen: state.chipOpen === b.dataset.chip ? null : b.dataset.chip, themeOpen: false });
   if ((b = q('[data-preset]'))) { const p = R.presets(state.bounds.to)[b.dataset.preset]; return setState({ cardRanges: { ...state.cardRanges, [b.dataset.cp]: { from: p.from, to: p.to } }, chipOpen: null }); }
   if ((b = q('[data-creset]'))) { const { [b.dataset.creset]: _, ...rest } = state.cardRanges; return setState({ cardRanges: rest, chipOpen: null }); }

@@ -107,9 +107,9 @@ const channelCard = (cx, ch) => {
   const gMax = Math.max(...groups.map((g) => g.rev), 1);
   const grp = groups.length ? `<div class="tile" style="gap:10px"><div class="card-h"><b>그룹별 ${esc(ind.revLabel)}</b><span class="sm">오른쪽 = ${esc(ind.convLabel)}</span></div>
     ${U.hbars(groups.slice(0, 8).map((g) => ({ label: g.name, w: (g.rev / gMax) * 100, text: `${wonS(g.rev)} · ${cnt(g.conv)}${esc(ind.convUnit)}`, color: ch.color })))}</div>` : '';
-  const an = R.creativeAnalysis(ind, r);
+  const an = R.creativeAnalysis({ ...ind, creatives: U.creativeSets(ind)[ch.id] || null }, r);  // 이 매체의 소재(또는 애드부스트 상품) 묶음
   const ads = an.rows.filter((a) => a.channelId === ch.id).sort((a, b) => b.rev - a.rev).slice(0, 5);
-  const top = ads.length ? `<div class="tile" style="gap:10px"><div class="card-h"><b>이 매체 소재 TOP 5</b><button type="button" class="link" data-page="creatives">소재 성과에서 전체 보기 →</button></div>
+  const top = ads.length ? `<div class="tile" style="gap:10px"><div class="card-h"><b>이 매체 ${ch.lever === 'budget' ? '상품' : '소재'} TOP 5</b><button type="button" class="link" data-page="creatives" data-adch="${esc(ch.id)}">소재 성과에서 전체 보기 →</button></div>
     <div class="gallery g5">${ads.map((a, i) => `<div class="mini">${U.thumb(a, 90)}<span class="nm" style="font-weight:500">${i + 1} · ${esc(a.name)}</span><span class="sm num">${wonS(a.rev)} · ${esc(ind.convLabel)} ${cnt(a.conv)} · ROAS ${cnt(a.roas)}%</span></div>`).join('')}</div>
     ${an.basis.fixed ? '<div class="note">소재 일별 데이터 수집 전이라 최근 28일 고정 수치입니다.</div>' : ''}</div>` : '';
   return card({ id, title: `<span style="display:inline-flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:4px;background:${ch.color}"></span>${esc(ch.name)}</span>`, sub: U.chBadge(c, r, ind), tools: rangeChip(id, r, st),
