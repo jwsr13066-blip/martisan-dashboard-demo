@@ -35,7 +35,7 @@ const rankCard = (cx) => {
   const sort = SORTS[st.adSort] ? st.adSort : 'rev';
   const rows = an.rows.slice().sort(SORTS[sort][1]);
   const seg = `<div class="seg" role="group" aria-label="정렬">${Object.entries(SORTS).map(([k, [lb]]) => `<button type="button" data-sort="${k}" aria-pressed="${k === sort}">${lb}</button>`).join('')}</div>`;
-  if (!rows.length) return card({ id: 'rank', title: `${noun} 랭킹`, tools: rangeChip('rank', r, st), body: `${basisNote(an)}<div class="empty">이 기간에 광고비나 매출이 잡힌 ${noun}이 없습니다.</div>` });
+  if (!rows.length) return card({ id: 'rank', title: `${noun} 랭킹`, tools: rangeChip('rank', r, st), body: `${basisNote(an)}<div class="empty">이 기간에 광고비나 매출이 잡힌 ${noun}${noun === '상품' ? '이' : '가'} 없습니다.</div>` });
   const top = rows.slice(0, 3).map((a, i) => `<div class="top">${U.thumb(a, 170, i + 1)}<div class="nm" style="font-weight:500">${esc(a.name)}</div>
     <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="big num" style="font-size:24px">${wonS(a.rev)}</span><span class="badge tone-${a.cost ? U.roasState(a.roas, ind) : 'mute'}">ROAS ${a.cost ? `${cnt(a.roas)}%` : '—'}</span></div>
     <div class="sm num">${esc(ind.convLabel)} ${cnt(a.conv)} · ${esc(ind.convLabel)}당 ${a.conv ? `${cnt(a.cost / a.conv)}원` : '—'} · 클릭 ${cnt(a.clicks)} · 광고비 ${wonS(a.cost)}</div>${U.judgeBadge(a.judge)}${U.labelChips(a.labels, 4)}</div>`).join('');

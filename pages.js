@@ -136,7 +136,7 @@ const bulletCard = (cx) => {
   const body = rows.map((c) => {
     const dp = c.prev.cost ? c.roas - c.prev.roas : null;
     return `<div class="bullet-row"><div style="display:flex;flex-direction:column;gap:4px"><span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:3px;background:${c.color}"></span><b>${esc(c.name)}</b></span>
-      <span class="big num">${U.chStale(c, r) ? '—' : `${cnt(c.roas)}%`}</span>${U.chStale(c, r) ? U.chBadge(c, r, ind) : `<span class="badge tone-${U.roasState(c.roas, ind)}" style="align-self:flex-start">${U.STATE_WORD[U.roasState(c.roas, ind)]}${dp == null ? '' : ` · 직전 기간 ${dp >= 0 ? '▲' : '▼'}${Math.abs(dp)}%p`}</span>`}</div>
+      <span class="big num">${U.chStale(c, r) || U.chIdle(c) ? '—' : `${cnt(c.roas)}%`}</span>${U.chStale(c, r) || U.chIdle(c) ? U.chBadge(c, r, ind) : `<span class="badge tone-${U.roasState(c.roas, ind)}" style="align-self:flex-start">${U.STATE_WORD[U.roasState(c.roas, ind)]}${dp == null ? '' : ` · 직전 기간 ${dp >= 0 ? '▲' : '▼'}${Math.abs(dp)}%p`}</span>`}</div>
       <div style="display:flex;flex-direction:column;gap:6px"><div class="bullet" data-tip="${esc(c.name)} · 광고비 ${won(c.cost)} → ${esc(ind.revLabel)} ${won(c.rev)}"><div class="z1" style="width:${p(ind.bep)}"></div><div class="z2" style="width:calc(${p(ind.target)} - ${p(ind.bep)})"></div><div class="z3" style="flex:1"></div><div class="bar" style="width:${p(c.roas)}"></div></div>
       <div class="scale"><span style="left:${p(ind.bep)}">손익분기 ${ind.bep}%</span><span style="left:${p(ind.target)}">목표 ${ind.target}%</span></div></div></div>`;
   }).join('');
@@ -157,7 +157,7 @@ const trendCard = (cx) => {
 
 const streak = (vals, pred) => { let n = 0; for (let i = vals.length - 1; i >= 0 && vals[i] != null && pred(vals[i]); i -= 1) n += 1; return n; };
 const lightsCard = (cx) => {
-  const { ind, st } = cx, r = cx.rng('lights', 'weeks4'), rows = R.channelAgg(ind, r).filter((c) => !U.chStale(c, r));  // 데이터 미반영 매체는 진단 생략
+  const { ind, st } = cx, r = cx.rng('lights', 'weeks4'), rows = R.channelAgg(ind, r).filter((c) => !U.chStale(c, r) && !U.chIdle(c));  // 데이터 미반영·집행 없음 매체는 진단 생략
   const cards = rows.map((c) => {
     const j = U.judgeFor(c.roas, ind, c), ws = U.weeklyRoas(ind.byChannel[c.id], r.to, 4);  // 매체별 조정 수단에 맞는 액션
     const run = j.s === 'good' ? `${streak(ws, (v) => v >= ind.target)}주 연속 목표 달성` : `${streak(ws, (v) => v < ind.target)}주 연속 목표 미달`;

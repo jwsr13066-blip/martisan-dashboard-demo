@@ -182,11 +182,11 @@ const whyCard = (cx) => {
   const { ind, st } = cx, r = cx.rng('why');
   const rows = R.channelAgg(ind, r);
   const body = rows.map((c) => {
-    const j = U.judgeFor(c.roas, ind, c), stale = U.chStale(c, r), small = stale || c.clicks < 10;
+    const j = U.judgeFor(c.roas, ind, c), stale = U.chStale(c, r), idle = U.chIdle(c), small = stale || idle || c.clicks < 10;
     const ws = U.weeklyRoas(ind.byChannel[c.id], r.to, 4);
     return `<div class="li"><span class="dot ${small ? 'mute' : j.s}"></span><div class="grow"><div class="t">${esc(c.name)} · ROAS ${cnt(c.roas)}%${small ? '' : ` → ${esc(j.act)}`}</div>
       <div class="sm">최근 4주 ROAS ${U.roasList(ws)}% · 클릭 ${cnt(c.clicks)} · ${esc(ind.convLabel)} ${cnt(c.conv)}${esc(ind.convUnit)} · 손익분기 ${ind.bep}% = 100 ÷ 마진 ${ind.margin}% · 목표 ${ind.target}%</div></div>
-      <span class="badge tone-${small ? 'mute' : j.s}">${stale ? '데이터 미반영 · 판단 보류' : small ? '표본 부족 · 판단 보류' : U.STATE_WORD[j.s]}</span></div>`;
+      <span class="badge tone-${small ? 'mute' : j.s}">${stale ? '데이터 미반영 · 판단 보류' : idle ? '이 기간 집행 없음' : small ? '표본 부족 · 판단 보류' : U.STATE_WORD[j.s]}</span></div>`;
   }).join('');
   const first = rows[0], j0 = first ? U.judgeFor(first.roas, ind, first) : null;
   return card({ id: 'why', title: '성과 진단', sub: '같은 숫자는 항상 같은 진단 (고정 규칙) · 클릭 10 미만은 보류',

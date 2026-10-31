@@ -57,11 +57,14 @@ const chEmpty = (c) => !!(c && !c.firstDate && !c.lastDate);
 const chStale = (c, r) => !!(c && r && (chEmpty(c) || (c.lastDate && c.lastDate < r.from) || (c.firstDate && c.firstDate > r.to)));
 const chPartial = (c, r) => !!(c && r && !chStale(c, r) && ((c.lastDate && c.lastDate >= r.from && c.lastDate < r.to) || (c.firstDate && c.firstDate > r.from && c.firstDate <= r.to)));
 const partialNote = (c, r) => [c.firstDate && c.firstDate > r.from ? `${mdS(c.firstDate)}부터` : '', c.lastDate && c.lastDate < r.to ? `${mdS(c.lastDate)}까지` : ''].filter(Boolean).join(' ') + ' 반영';
+/* 기간 안 광고비·매출이 모두 0 = 집행 없음(캠페인 일시중지 등) → 0% '손익분기 미달'로 판정하지 않는다 (브리핑의 ⚪ 집행 없음과 같은 기준) */
+const chIdle = (c) => !!(c && !c.cost && !c.rev);
 const chBadge = (c, r, ind) => (chStale(c, r)
   ? chEmpty(c) ? '<span class="badge tone-mute" data-tip="설정 카드에서 켰지만 아직 수집된 데이터가 없습니다. 열쇠(GitHub Secrets) 등록 여부와 Actions dashboard 로그의 수집기 줄을 확인하세요.">미반영 · 수집된 데이터 없음</span>'
   : (c.firstDate && c.firstDate > r.to
     ? `<span class="badge tone-mute" data-tip="이 매체는 ${mdS(c.firstDate)}부터 집계를 시작했습니다. 그 전 기간은 데이터가 없어 판정하지 않습니다.">미반영 · ${mdS(c.firstDate)}부터 데이터</span>`
     : `<span class="badge tone-mute" data-tip="${c.source === 'csv' ? 'CSV로 들어오는 매체라 이 기간 데이터가 아직 없습니다. 보고서를 받아 드라이브 폴더에 넣으면 15분 안에 반영됩니다.' : `이 매체는 ${mdS(c.lastDate)}까지 수집됐습니다. 수집기가 매일 아침 갱신하며, 열쇠가 만료됐으면 설치 문서대로 다시 등록합니다.`}">미반영 · ${mdS(c.lastDate)}까지</span>`)
+  : chIdle(c) ? '<span class="badge tone-mute" data-tip="이 기간에 광고비가 0원입니다 (캠페인 일시중지 또는 미집행). 효율 판정은 하지 않습니다.">이 기간 집행 없음</span>'
   : roasBadge(c.roas, ind) + (chPartial(c, r) ? ` <span class="badge tone-mute">${partialNote(c, r)}</span>` : ''));
 const sumBadge = (ind) => (multi(ind) ? `<span class="badge tone-mute" data-tip="매체마다 귀속 기준이 달라 같은 구매가 중복될 수 있습니다. 판정은 성과 진단·매체별 화면에서 매체별로 합니다.">중복 귀속 가능 · 판정은 매체별${staleNote(ind) ? ` · ${esc(staleNote(ind))}` : ''}</span>` : null);
 const roasBadge = (roas, ind) => `<span class="badge tone-${roasState(roas, ind)}">ROAS ${cnt(roas)}% · ${STATE_WORD[roasState(roas, ind)]}</span>`;
@@ -158,5 +161,5 @@ const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) =>
 });
 const roasList = (ws) => ws.map((v) => (v == null ? '—' : Math.round(v).toLocaleString('ko-KR'))).join(' → ');
 
-window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chBadge, creativeSets, judgeBadge };
+window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chIdle, chBadge, creativeSets, judgeBadge };
 })();
