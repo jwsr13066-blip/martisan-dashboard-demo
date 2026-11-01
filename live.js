@@ -44,7 +44,7 @@
     groups: (live.groups && live.groups.groups) || [], groupDaily: (live.groups && live.groups.daily) || {},
     firstDate: dates[0], lastDate: live.source_last_date || dates[dates.length - 1],
     ops: { approvals: live.approvals, history: live.history, timeline: live.timeline, rules: live.rules || null, weather: live.weather || null,
-      pending: live.pending_sources || [], generatedAt: live.generated_at },
+      pending: live.pending_sources || [], generatedAt: live.generated_at, reviewPlan: live.review_plan || null },
   };
   window.MARTISAN_DATA = { ...window.MARTISAN_DATA, DATA: { live: industry }, LIVE: true, END_DATE: industry.lastDate };
 })();

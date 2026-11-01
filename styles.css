@@ -310,3 +310,4 @@ details.fold > summary::-webkit-details-marker { display: none; }
   .card { padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+

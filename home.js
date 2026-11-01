@@ -76,7 +76,14 @@ const inboxCard = (cx, p) => {
   const head = p.live ? `승인 대기 ${a.count}건` : a.status === 'applied' ? `지난 제안 ${a.count}건 · 적용 완료` : '승인 대기 없음';
   const body = items.length ? shown.map(itemRow).join('') : '<div class="empty">지금 승인할 제안이 없습니다. 다음 주간 제안은 월요일 09:17에 올라옵니다.</div>';
   const more = items.length > 3 ? `<button type="button" class="link" data-toggle="inboxAll">${st.inboxAll ? '접기' : `나머지 ${items.length - 3}건 펼치기`}</button>` : '';
-  return card({ id: 'inbox', span: 7, title: head, sub: `예상 영향 금액 순 · ${esc(summary)}`, body: `<div>${body}</div><div class="card-h" style="border-top:1px solid var(--line);padding-top:12px">${more || '<span></span>'}${approveBtn(p, st)}</div>` });
+  return card({ id: 'inbox', span: 7, title: head, sub: `예상 영향 금액 순 · ${esc(summary)}`, body: `<div>${body}</div><div class="card-h" style="border-top:1px solid var(--line);padding-top:12px">${more || '<span></span>'}${approveBtn(p, st)}</div>${planBox(cx.ind.ops.reviewPlan)}` });
+};
+
+/* 월간 리뷰에서 승인한 다음 달 계획 — 실행 경로별로 보여준다 (입찰 항목은 주간 입찰 제안이 이어받고, API 없는 매체는 광고센터에서 직접) */
+const PLAN_ROUTE = { bid: '주간 입찰 제안에 반영', rule: '자동 규칙 설정', manual: '광고센터에서 직접', data: '자료 반영', watch: '자동 측정' };
+const planBox = (pl) => {
+  if (!pl || !(pl.items || []).length) return '';
+  return `<div style="border-top:1px solid var(--line);padding-top:12px"><div class="sm"><b>${Number(pl.month.slice(5, 7))}월 계획 · 월간 리뷰에서 승인 ${esc(R.md(pl.approved_at.slice(0, 10)))}</b></div>${pl.items.map((x) => `<div class="li"><span class="badge b dir tone-${x.status === 'done' ? 'good' : 'info'}">${x.status === 'done' ? '완료' : '대기'}</span><div class="grow"><div class="t">${esc(x.title)}</div><div class="sm">${esc(PLAN_ROUTE[x.route] || x.route)} · ${esc(x.why)}</div></div></div>`).join('')}</div>`;
 };
 
 const scoreCard = (cx) => {

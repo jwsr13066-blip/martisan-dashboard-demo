@@ -11,10 +11,12 @@ const PAGES = [
   { id: 'channels', name: '매체별 성과', secs: [['share', '매체 비교']], channelSecs: true },
   { id: 'roas', name: '매체별 ROAS', secs: [['compare', 'ROAS 비교'], ['trend', 'ROAS 추이'], ['lights', '효율 진단']] },
   { id: 'creatives', name: '소재 성과', secs: [['rank', '소재 랭킹'], ['axes', '소재 요소 분석'], ['map', '소재 기획 제안']] },
+  { id: 'review', name: '월간 리뷰', secs: [['rv-top', '한 줄 결론'], ['rv-SA', '검색광고'], ['rv-DA', '디스플레이'], ['rv-mix', '매체 간 효율화'], ['rv-next', '다음 달 제안']] },
 ];
 const RENDER = {
   home: (cx) => window.PAGE_HOME.pageHome(cx), overview: (cx) => window.PAGES_MAIN.pageOverview(cx), channels: (cx) => window.PAGES_MAIN.pageChannels(cx),
   roas: (cx) => window.PAGES_MAIN.pageRoas(cx), creatives: (cx) => window.PAGE_CREATIVES.pageCreatives(cx),
+  review: (cx) => (window.PAGE_REVIEW ? window.PAGE_REVIEW.pageReview(cx) : '<div class="grid"><section class="card s12"><div class="empty">월간 리뷰를 불러오지 못했습니다. 시트 스크립트에 월간 리뷰 코드 반영과 새 버전 배포가 필요합니다.</div></section></div>'),
 };
 const THEME_KEY = 'martisan-theme';
 const store = { get: (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* 저장 불가 환경: 이번 화면에서만 적용 */ } } };
@@ -31,6 +33,7 @@ let state = {
   ...initialFor(LIVE ? 'live' : 'commerce'), page: 'home', themeOpen: false, approving: false,
   theme: store.get(THEME_KEY) || (LIVE ? D.DATA.live.theme : 'cream') || 'cream',
   today: LIVE ? kstToday() : D.END_DATE, ruleArm: null, ruleBusy: false, ruleMsg: {}, adChannel: null, inboxAll: false, logAll: false, whyOpen: false, tableOpen: false, adSort: 'rev', adAll: false, axis: 'background', trendUnit: 'week',
+  reviewMonth: null, reviewEdit: null, reviewEdits: {}, reviewRemoved: [], reviewArm: null, reviewBusy: null, reviewMsg: {},
 };
 
 /* 카드 기본 기간 종류 → 실제 기간 */
@@ -140,6 +143,38 @@ const toggleRule = (id, enabled) => {
     .toggleRule(window.MARTISAN_DASH_KEY || '', id, enabled);
 };
 
+/* ---------- 월간 리뷰 (소유자만: 확정·계획 승인·초안 다시 만들기 — 두 번 눌러야 실행) ----------
+   고친 문장·뺀 제안은 확정할 때 함께 보낸다. 확정 전엔 이 브라우저에만 임시 저장(새로고침해도 유지). */
+const RV_KEY = (m) => `martisan-review-${m}`;
+const rvMonth = () => { const rv = window.PAGE_REVIEW.current(state); return rv ? rv.month : null; };
+const rvSaveLocal = (edits, removed) => { const m = rvMonth(); if (m) store.set(RV_KEY(m), JSON.stringify({ edits, removed })); };
+const rvLoadLocal = (m) => { try { const v = JSON.parse(store.get(RV_KEY(m)) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };
+const rvSwitch = (m) => { const loc = rvLoadLocal(m) || {}; return { reviewMonth: m, reviewEdit: null, reviewEdits: loc.edits || {}, reviewRemoved: loc.removed || [], reviewArm: null, reviewMsg: {} }; };
+let rvTimer = null, rvArmedAt = 0;
+const RV_DONE = { confirm: '확정 요청 접수 · 1~2분 뒤 새로고침하면 고객 공개 상태로 바뀝니다', plan: '계획 승인 접수 · 결재 필요 항목이 결재함으로 넘어갑니다', rebuild: '다시 만들기 접수 · 2~3분 뒤 새로고침하면 새 초안이 보입니다' };
+const reviewAct = (act) => {
+  if (state.reviewBusy) return undefined;
+  if (state.reviewArm !== act) {
+    clearTimeout(rvTimer); rvArmedAt = Date.now();
+    rvTimer = setTimeout(() => { if (state.reviewArm === act && !state.reviewBusy) setState({ reviewArm: null }); }, 8000);
+    return setState({ reviewArm: act });
+  }
+  if (Date.now() - rvArmedAt < 800) return undefined;
+  clearTimeout(rvTimer);
+  const month = rvMonth(), payload = JSON.stringify(act === 'confirm' ? { edits: state.reviewEdits, removed: state.reviewRemoved } : {});
+  const run = window.google && window.google.script && window.google.script.run;
+  const msgKey = act === 'plan' ? 'plan' : 'confirm';
+  if (!LIVE || !run) {  // 샘플: 그 자리에서만 상태를 바꿔 흐름을 보여준다
+    const sim = (r) => (r.month !== month ? r : act === 'confirm' ? { ...r, status: 'confirmed', confirmed_at: `${kstToday()}T09:00:00`, texts: { ...r.texts, ...state.reviewEdits }, removed: state.reviewRemoved, edited: Object.keys(state.reviewEdits) } : act === 'plan' ? { ...r, plan_status: 'approved' } : r);
+    if (window.MARTISAN_REVIEWS) window.MARTISAN_REVIEWS = window.MARTISAN_REVIEWS.map(sim); else D.REVIEWS = (D.REVIEWS || []).map(sim);
+    return setState({ reviewArm: null, reviewMsg: { [msgKey]: `${RV_DONE[act]} (샘플 화면에서만)` }, ...(act === 'confirm' ? { reviewEdits: {}, reviewRemoved: [], reviewEdit: null } : {}) });
+  }
+  setState({ reviewBusy: act, reviewArm: null });
+  return run.withSuccessHandler(() => { if (act === 'confirm') store.set(RV_KEY(month), ''); setState({ reviewBusy: null, reviewMsg: { [msgKey]: RV_DONE[act] } }); })
+    .withFailureHandler((e) => { const m = e && e.message ? e.message : String(e); setState({ reviewBusy: null, reviewMsg: { [msgKey]: `실행 요청 실패: ${/not found/i.test(m) ? '시트 스크립트에 월간 리뷰 코드 반영과 새 버전 배포가 필요합니다' : m}` } }); })
+    .reviewAction(window.MARTISAN_DASH_KEY || '', month, act, payload, window.MARTISAN_O || '');
+};
+
 /* ---------- 표 복사 ---------- */
 const copyTable = (id) => {
   const t = document.getElementById(id), msg = document.getElementById('copy-msg');
@@ -174,12 +209,24 @@ const onClick = (ev) => {
   if ((b = q('[data-axis]'))) return setState({ ...base, axis: b.dataset.axis });
   if ((b = q('[data-unit]'))) return setState({ ...base, trendUnit: b.dataset.unit });
   if ((b = q('[data-copy]'))) return copyTable(b.dataset.copy);
+  if ((b = q('[data-rv-edit]'))) return setState({ reviewEdit: b.dataset.rvEdit || null });
+  if ((b = q('[data-rv-remove]'))) { const id = b.dataset.rvRemove, rm = state.reviewRemoved.includes(id) ? state.reviewRemoved.filter((x) => x !== id) : [...state.reviewRemoved, id]; rvSaveLocal(state.reviewEdits, rm); return setState({ reviewRemoved: rm }); }
+  if ((b = q('[data-rv-act]'))) return ev.detail > 1 ? undefined : reviewAct(b.dataset.rvAct);
+  if (q('[data-print]')) { try { window.print(); } catch (e) { /* 인쇄 막힌 환경 */ } return undefined; }
   if ((state.chipOpen || state.themeOpen) && !insidePop) return setState(base);
   return undefined;
 };
 const onChange = (ev) => {
   const t = ev.target, v = t.value;
   if (t.matches('select[data-hist]')) return setState({ histIdx: Number(v) });
+  if (t.matches('select[data-review-month]')) return setState(rvSwitch(v));
+  if (t.matches('textarea[data-rv-text]')) {
+    const rv = window.PAGE_REVIEW.current(state), slot = t.dataset.rvText, orig = ((rv && rv.texts) || {})[slot] || '';
+    const { [slot]: _, ...rest } = state.reviewEdits;
+    const edits = v.trim() === orig.trim() ? rest : { ...rest, [slot]: v.trim() };
+    rvSaveLocal(edits, state.reviewRemoved);
+    return setState({ reviewEdits: edits });
+  }
   if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
   if (t.dataset.gf) return setState({ range: R.clamp({ from: v, to: v > state.range.to ? v : state.range.to }, state.bounds), cardRanges: {} });
   if (t.dataset.gt) return setState({ range: R.clamp({ from: v < state.range.from ? v : state.range.from, to: v }, state.bounds), cardRanges: {} });
@@ -209,5 +256,6 @@ document.addEventListener('mousemove', (ev) => {
   tip.style.left = `${x}px`; tip.style.top = `${y}px`;
 });
 
+if (window.PAGE_REVIEW) { const rv0 = window.PAGE_REVIEW.current(state); if (rv0) state = { ...state, ...rvSwitch(rv0.month) }; }
 render();
 })();
