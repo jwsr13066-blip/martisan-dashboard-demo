@@ -16,7 +16,7 @@ const PAGES = [
 const RENDER = {
   home: (cx) => window.PAGE_HOME.pageHome(cx), overview: (cx) => window.PAGES_MAIN.pageOverview(cx), channels: (cx) => window.PAGES_MAIN.pageChannels(cx),
   roas: (cx) => window.PAGES_MAIN.pageRoas(cx), creatives: (cx) => window.PAGE_CREATIVES.pageCreatives(cx),
-  review: (cx) => (window.PAGE_REVIEW ? window.PAGE_REVIEW.pageReview(cx) : '<div class="grid"><section class="card s12"><div class="empty">월간 리뷰를 불러오지 못했습니다. 시트 스크립트에 월간 리뷰 코드 반영과 새 버전 배포가 필요합니다.</div></section></div>'),
+  review: (cx) => (window.PAGE_REVIEW ? window.PAGE_REVIEW.pageReview(cx) : `<div class="grid"><section class="card s12"><div class="empty">월간 리뷰를 불러오지 못했습니다. ${window.MARTISAN_REVIEW_ERROR ? `시트 스크립트 오류: ${esc(String(window.MARTISAN_REVIEW_ERROR))}` : '시트 스크립트에 월간 리뷰 코드 반영과 새 버전 배포가 필요합니다.'}</div></section></div>`),
 };
 const THEME_KEY = 'martisan-theme';
 const store = { get: (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* 저장 불가 환경: 이번 화면에서만 적용 */ } } };
