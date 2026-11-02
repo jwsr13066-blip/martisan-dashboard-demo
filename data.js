@@ -231,7 +231,9 @@ const buildIndustry = (key) => {
   const creatives = genCreatives(ind, byChannel, rand);
   const creativesBy = splitByChannel(ind, creatives);
   const bep = Math.round((100 / ind.margin) * 100);
-  return { ...ind, live: false, byChannel, days, bep, target: Math.round((bep * 1.2) / 10) * 10, creatives: creativesBy[ind.channels[0].id] || creatives, creativesBy, ...genGroups(ind, creatives),
+  /* 샘플 매체도 데이터 구간을 갖는다 — 없으면 화면이 '미반영 · 수집된 데이터 없음'으로 오판 */
+  const channels = ind.channels.map((c) => ({ ...c, firstDate: c.firstDate || days[0].date, lastDate: c.lastDate || days[days.length - 1].date }));
+  return { ...ind, channels, live: false, byChannel, days, bep, target: Math.round((bep * 1.2) / 10) * 10, creatives: creativesBy[ind.channels[0].id] || creatives, creativesBy, ...genGroups(ind, creatives),
     firstDate: days[0].date, lastDate: days[days.length - 1].date, ops: opsFor(key) };
 };
 
