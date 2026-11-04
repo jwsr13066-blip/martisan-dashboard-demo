@@ -1,5 +1,6 @@
 /* 월간 리뷰 (review.js) — 전부 .rv 안에서만. 대시보드 본체(스크립트 속성 500KB)와 따로, 시트 스크립트가 리뷰 데이터와 함께 주입한다 */
-.rv { display: flex; flex-direction: column; gap: 16px; }
+.rv { display: flex; flex-direction: column; gap: 16px; word-break: keep-all; overflow-wrap: break-word; }  /* 한글 단어 중간 줄바꿈 방지 (회/복, 관/찰 같은 끊김) */
+.rv p, .rv .why, .rv .sub, .rv .sm, .rv li { text-wrap: pretty; }  /* 마지막 줄에 한 단어만 남는 줄바꿈 방지 */
 .rv .rv-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--mute); }
 .rv .rv-sel { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .rv .status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--warn-soft); color: var(--warn-ink); border-radius: 16px; padding: 12px 16px; font-size: 13px; }

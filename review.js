@@ -49,9 +49,8 @@ const weekSvg = (weeks, bep) => {
   const y = (v) => y0 - (v / top) * h;
   return `<svg viewBox="0 0 300 150" role="img" aria-label="주차별 ROAS ${weeks.map((w) => `${w.label} ${pctS(w.roas)}`).join(', ')}">
     <line x1="20" y1="${y0}" x2="290" y2="${y0}" stroke="var(--line)"/><line x1="20" y1="${y(bep)}" x2="290" y2="${y(bep)}" stroke="var(--mute)" stroke-dasharray="4 4"/>
-    <text x="290" y="${y(bep) - 4}" text-anchor="end" font-size="10" fill="var(--mute)">손익분기 ${bep}%</text>
     ${weeks.map((w, i) => `<rect x="${x(i)}" y="${y(w.roas || 0)}" width="36" height="${Math.max(1, y0 - y(w.roas || 0))}" rx="5" fill="${(w.roas || 0) >= bep ? 'var(--acc)' : 'var(--warn)'}"/>
-      <text x="${x(i) + 18}" y="${y(w.roas || 0) - 6}" font-size="11" font-weight="700" text-anchor="middle" fill="var(--text)">${pctS(w.roas)}</text>
+      <text x="${x(i) + 18}" y="${y(w.roas || 0) - 6}" font-size="11" font-weight="700" text-anchor="middle" fill="var(--text)" stroke="var(--card)" stroke-width="3" paint-order="stroke">${pctS(w.roas)}</text>
       <text x="${x(i) + 18}" y="136" font-size="10" text-anchor="middle" fill="var(--mute)">${esc(w.label)}</text>`).join('')}</svg>`;
 };
 const table = (head, rows) => `<div class="rv-tbl"><table><thead><tr>${head.map((h, i) => `<th${i ? ' class="r"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td${i ? ' class="r"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
@@ -83,7 +82,7 @@ const saBlock = (st, rv, b, main) => {
   return `<section class="card s12"><div class="card-h"><h3>① 성과 브리핑 <small>${esc(b.name)}</small></h3>${U.roasBadge(b.kpi.roas || 0, c)}</div>
     ${main ? lead(st, rv, 'sa_lead', 'sa_sub') : ''}${kpiRow(b)}${b.kpi.clk ? decomp(b) : ''}
     <div class="grid"><div class="s7" style="display:flex;flex-direction:column;gap:10px;min-width:0">${groupBars(b, c.bep)}</div>
-      <div class="s5" style="min-width:0"><div class="sm">주차별 ROAS</div>${weekSvg(b.weeks || [], c.bep)}</div></div>
+      <div class="s5" style="min-width:0"><div class="sm">주차별 ROAS · 점선 = 손익분기 ${c.bep}%</div>${weekSvg(b.weeks || [], c.bep)}</div></div>
     ${main ? aiText(st, rv, ['sa_body1', 'sa_body2']) : ''}
     ${a.top ? `<div class="grid"><div class="s6" style="min-width:0">${table(['상위 소재 <span class="sm">구매 있음·광고비 5천 원 이상</span>', '광고비', '구매', 'ROAS'], a.top.map((t) => [esc(t[0]), cnt(t[1]), cnt(t[2]), `<span class="up">${pctS(t[3])}</span>`]))}</div>
       <div class="s6" style="min-width:0">${table(['구매 없는 소재 <span class="sm">광고비 1만 원 이상</span>', '광고비', '클릭'], (a.bottom || []).map((t) => [esc(t[0]), cnt(t[1]), cnt(t[2])]))}</div></div>` : ''}
