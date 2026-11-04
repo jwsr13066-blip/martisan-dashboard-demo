@@ -212,6 +212,9 @@ const opsFor = (id) => {
     history: HISTORY[id],
     timeline: TIMELINE[id].map(([n, type, title, detail]) => ({ date: ago(n), type, title, detail })),
     rules: id === 'commerce' ? RULES : null,
+    ruleProposal: id === 'commerce' ? { date: iso(END_DATE), status: 'pending', applied_at: null,
+      rules: [{ id: 'weekend_pc', name: '주말 PC 억제', icon: '🖥️', why: '토요일', pc: -30, mo: 0 }],
+      groups: [{ name: '반지', pc: -30, mo: 0 }, { name: '팔찌', pc: -30, mo: 0 }, { name: '목걸이', pc: -30, mo: 0 }] } : null,
     weather: { location: { name: '서울' }, today: { rain_prob: 20, tmin: 9, tmax: 19 }, tomorrow: { rain_prob: 70, tmin: 8, tmax: 15 } },
     pending: [], generatedAt: `${ago(0)}T09:40:00+09:00`,
   };

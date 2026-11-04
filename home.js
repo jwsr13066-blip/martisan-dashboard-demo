@@ -76,7 +76,24 @@ const inboxCard = (cx, p) => {
   const head = p.live ? `승인 대기 ${a.count}건` : a.status === 'applied' ? `지난 제안 ${a.count}건 · 적용 완료` : '승인 대기 없음';
   const body = items.length ? shown.map(itemRow).join('') : '<div class="empty">지금 승인할 제안이 없습니다. 다음 주간 제안은 월요일 09:17에 올라옵니다.</div>';
   const more = items.length > 3 ? `<button type="button" class="link" data-toggle="inboxAll">${st.inboxAll ? '접기' : `나머지 ${items.length - 3}건 펼치기`}</button>` : '';
-  return card({ id: 'inbox', span: 7, title: head, sub: `예상 영향 금액 순 · ${esc(summary)}`, body: `<div>${body}</div><div class="card-h" style="border-top:1px solid var(--line);padding-top:12px">${more || '<span></span>'}${approveBtn(p, st)}</div>${planBox(cx.ind.ops.reviewPlan)}` });
+  return card({ id: 'inbox', span: 7, title: head, sub: `예상 영향 금액 순 · ${esc(summary)}`, body: `<div>${body}</div><div class="card-h" style="border-top:1px solid var(--line);padding-top:12px">${more || '<span></span>'}${approveBtn(p, st)}</div>${ruleBox(cx.ind.ops.ruleProposal, st)}${planBox(cx.ind.ops.reviewPlan)}` });
+};
+
+/* 오늘 발동한 '제안' 모드 규칙 — 승인하면 오늘만 적용, 밤 12시 원복 (카톡 [✅ 제안 적용하기]와 같은 1회용 승인) */
+const pctTxt = (n) => (n > 0 ? `+${n}%` : `${n}%`);
+const ruleBtn = (rp, st) => {
+  if (rp.status === 'applied' || st.rpDone) return `<span class="badge tone-good b">${rp.status === 'applied' ? `적용 완료 ${esc(String(rp.applied_at || '').slice(11, 16))}` : '승인 접수 · 적용 결과는 카톡으로 갑니다'}</span>`;
+  if (rp.status !== 'pending') return '<span class="badge tone-mute">처리됨</span>';
+  if (st.rpBusy) return '<button type="button" class="btn" disabled>실행 요청 중…</button>';
+  return `<button type="button" class="btn ${st.rpArm ? 'arm' : ''}" data-rule-approve="1">${st.rpArm ? `정말 적용할까요? ${rp.groups.length}개 그룹 · 한 번 더 누르기` : '제안 적용하기'}</button>`;
+};
+const ruleBox = (rp, st) => {
+  if (!rp || !(rp.groups || []).length) return '';
+  const names = rp.rules.map((r) => `${r.icon} ${esc(r.name)}`).join(' · ');
+  const rows = rp.groups.slice(0, 5).map((g) => `<div class="li"><span class="badge b dir tone-info">제안</span><div class="grow"><div class="t">${esc(g.name)}</div><div class="sm">${[g.pc ? `PC 가중치 ${pctTxt(g.pc)}` : '', g.mo ? `MO 가중치 ${pctTxt(g.mo)}` : ''].filter(Boolean).join(' · ')}</div></div></div>`).join('');
+  const more = rp.groups.length > 5 ? `<div class="sm">외 ${rp.groups.length - 5}개 그룹</div>` : '';
+  return `<div style="border-top:1px solid var(--line);padding-top:12px"><div class="sm"><b>규칙 제안 · ${names}</b> · 오늘만 적용, 밤 12시 원래 값으로 원복</div>${rows}${more}
+    <div class="card-h" style="padding-top:8px">${st.rpErr ? `<span class="badge tone-crit">${esc(st.rpErr)}</span>` : '<span></span>'}${ruleBtn(rp, st)}</div></div>`;
 };
 
 /* 월간 리뷰에서 승인한 다음 달 계획 — 실행 경로별로 보여준다 (입찰 항목은 주간 입찰 제안이 이어받고, API 없는 매체는 광고센터에서 직접) */

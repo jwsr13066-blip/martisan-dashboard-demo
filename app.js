@@ -27,7 +27,7 @@ const initialFor = (key) => {
   const ind = D.DATA[key], bounds = { from: ind.firstDate, to: ind.lastDate };
   const P = R.presets(bounds.to);
   const range = R.spanDays(P.month) >= 3 ? P.month : P.d7;
-  return { industry: key, bounds, range: R.clamp(range, bounds), cardRanges: {}, chipOpen: null, approved: false, approveArm: false, approveError: '', histIdx: null };
+  return { industry: key, bounds, range: R.clamp(range, bounds), cardRanges: {}, chipOpen: null, approved: false, approveArm: false, approveError: '', rpArm: false, rpBusy: false, rpDone: false, rpErr: '', histIdx: null };
 };
 let state = {
   ...initialFor(LIVE ? 'live' : 'commerce'), page: 'home', themeOpen: false, approving: false,
@@ -116,6 +116,25 @@ const approve = () => {
     .withFailureHandler((e) => setState({ approving: false, approveError: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveBids(window.MARTISAN_DASH_KEY || '');
 };
 
+/* ---------- 규칙 제안 적용 (실제 적용 — 한 번 더 눌러야 실행, 오늘만 · 밤 12시 원복) ---------- */
+let rpTimer = null, rpAt = 0;
+const approveRuleProp = () => {
+  if (state.rpBusy || state.rpDone) return undefined;
+  if (!state.rpArm) {
+    clearTimeout(rpTimer);
+    rpAt = Date.now();
+    rpTimer = setTimeout(() => { if (state.rpArm && !state.rpBusy) setState({ rpArm: false }); }, 6000);
+    return setState({ rpArm: true });
+  }
+  if (Date.now() - rpAt < 800) return undefined;
+  clearTimeout(rpTimer);
+  const run = window.google && window.google.script && window.google.script.run;
+  if (!LIVE || !run) return setState({ rpDone: true, rpArm: false });
+  setState({ rpBusy: true, rpArm: false, rpErr: '' });
+  return run.withSuccessHandler(() => setState({ rpDone: true, rpBusy: false }))
+    .withFailureHandler((e) => setState({ rpBusy: false, rpErr: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveRuleProposal(window.MARTISAN_DASH_KEY || '');
+};
+
 /* ---------- 자동 규칙 스위치 (설정 파일 변경 요청 — 한 번 더 눌러야 실행) ----------
    첫 누름 = 확인 문구, 8초 안에 한 번 더 = 시트 스크립트 toggleRule → GitHub rules-toggle 워크플로가 규칙 파일을 고치고 다음 평가(13:00)부터 반영. 샘플 화면에선 그 자리에서만 바뀐다. */
 let ruleTimer = null;
@@ -202,6 +221,7 @@ const onClick = (ev) => {
   if ((b = q('[data-set-theme]'))) { store.set(THEME_KEY, b.dataset.setTheme); return setState({ theme: b.dataset.setTheme, themeOpen: false }); }
   if ((b = q('[data-gp]'))) { const p = R.presets(state.bounds.to)[b.dataset.gp]; return setState({ ...base, range: R.clamp({ from: p.from, to: p.to }, state.bounds), cardRanges: {} }); }
   if (q('[data-approve]')) return ev.detail > 1 ? undefined : approve();
+  if (q('[data-rule-approve]')) return ev.detail > 1 ? undefined : approveRuleProp();
   if ((b = q('[data-rule-toggle]'))) return ev.detail > 1 ? undefined : toggleRule(b.dataset.ruleToggle, b.dataset.ruleOn !== '1');
   if ((b = q('[data-scroll]'))) return scrollTo(b.dataset.scroll);
   if ((b = q('[data-toggle]'))) return setState({ ...base, [b.dataset.toggle]: !state[b.dataset.toggle] });
