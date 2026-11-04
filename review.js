@@ -10,7 +10,10 @@ const man = (n) => (Math.abs(n || 0) >= 10000 ? `${((n || 0) / 10000).toLocaleSt
 const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 const chg = (a, b) => (a != null && b ? Math.round((a / b - 1) * 1000) / 10 : null);
 const arrow = (v, goodUp = true, unit = '%') => (v == null ? '<span class="fl">—</span>' : `<span class="${v === 0 ? 'fl' : (v > 0) === goodUp ? 'up' : 'dn'}">${v > 0 ? '▲' : '▼'} ${Math.abs(v)}${unit}</span>`);
-const ROUTE = { bid: '주간 입찰 제안에 반영', rule: '자동 규칙 설정', manual: '광고센터에서 직접 (API 미제공)', data: '자료 반영', watch: '자동 측정' };
+const ROUTE_OWNER = { bid: '주간 입찰 제안에 반영', rule: '자동 규칙 설정', manual: '광고센터에서 직접 (API 미제공)', data: '자료 반영', watch: '자동 측정' };
+/* 고객(보기 전용) 화면에는 내부 운영 용어(결재함·API) 대신 고객이 이해하는 말로 */
+const ROUTE_VIEW = { bid: '입찰 조정으로 적용', rule: '자동 규칙으로 적용', manual: '광고센터에서 적용', data: '데이터 반영', watch: '성과 측정' };
+const routeOf = (r) => ((owner() ? ROUTE_OWNER : ROUTE_VIEW)[r] || r);
 
 const list = () => {
   const all = (window.MARTISAN_REVIEWS || (window.MARTISAN_DATA && window.MARTISAN_DATA.REVIEWS) || []).slice().sort((a, b) => (a.month < b.month ? 1 : -1));
@@ -128,8 +131,8 @@ const planCard = (st, rv, title, items, id) => {
   const vis = can ? items : items.filter((x) => !rm.has(x.id));
   return `<section class="card s6" id="${id}"><div class="card-h"><h3>${title}</h3><span class="pill ai">자동 제안</span></div><div class="plan">${vis.map((x) => `<div class="pi${rm.has(x.id) ? ' off' : ''}">
     <span class="ico sm tone-${x.approval ? 'warn' : 'info'}">${icon(x.approval ? 'check' : 'bulb', 16)}</span>
-    <div class="grow"><span class="t">${esc(x.title)}</span><span class="why">${esc(x.why)}</span><span class="sm">실행: ${esc(ROUTE[x.route] || x.route)}</span></div>
-    <div class="side-tags">${x.approval ? '<span class="pill">결재 필요</span>' : ''}${can ? `<button type="button" class="chip" data-rv-remove="${x.id}">${rm.has(x.id) ? '되살리기' : '제안 빼기'}</button>` : ''}</div></div>`).join('')}</div></section>`;
+    <div class="grow"><span class="t">${esc(x.title)}</span><span class="why">${esc(x.why)}</span><span class="sm">실행: ${esc(routeOf(x.route))}</span></div>
+    <div class="side-tags">${x.approval ? `<span class="pill">${owner() ? '결재 필요' : '승인 후 적용'}</span>` : ''}${can ? `<button type="button" class="chip" data-rv-remove="${x.id}">${rm.has(x.id) ? '되살리기' : '제안 빼기'}</button>` : ''}</div></div>`).join('')}</div></section>`;
 };
 
 const part = (st, rv, p) => {
@@ -175,9 +178,13 @@ const approveCard = (st, rv, appr) => {
   const done = rv.plan_status === 'approved';
   let btn = '';
   if (owner() && rv.status === 'confirmed' && !done) btn = st.reviewBusy === 'plan' ? '<button type="button" class="btn" disabled>요청 중…</button>' : `<button type="button" class="btn ${st.reviewArm === 'plan' ? 'arm' : ''}" data-rv-act="plan">${st.reviewArm === 'plan' ? `정말 진행할까요? ${appr.length}건 · 한 번 더 누르기` : '이 계획으로 진행'}</button>`;
-  return `<section class="card s12 approve"><div class="grow"><h3 style="margin:0;font-size:16px">이 계획으로 진행</h3>
-    <div class="sm">${done ? `승인됨 · ${appr.length}건이 결재함(개요 › 최적화 제안)으로 넘어갔습니다` : `승인하면 실계정 변경이 필요한 ${appr.length}건만 결재함으로 넘어갑니다. 실제 적용은 결재함의 실행 경로대로 진행합니다.`}${rv.status === 'draft' ? ' · 리뷰 확정 후 누를 수 있습니다' : ''}</div>
-    <ul>${appr.map((x) => `<li>${esc(x.title)} <span class="sm">· ${esc(ROUTE[x.route] || x.route)}</span></li>`).join('')}</ul></div>${btn}${st.reviewMsg.plan ? `<div class="sm">${esc(st.reviewMsg.plan)}</div>` : ''}</section>`;
+  const nm = Number(rv.next_month.slice(5, 7));
+  const head = owner() ? '이 계획으로 진행' : `${nm}월 실행 항목`;
+  const sub = !owner() ? `${done ? '승인 완료 · ' : ''}아래 ${appr.length}개 항목은 MARTISAN이 승인 절차를 거쳐 계정에 적용합니다.`
+    : `${done ? `승인됨 · ${appr.length}건이 결재함(개요 › 최적화 제안)으로 넘어갔습니다` : `승인하면 실계정 변경이 필요한 ${appr.length}건만 결재함으로 넘어갑니다. 실제 적용은 결재함의 실행 경로대로 진행합니다.`}${rv.status === 'draft' ? ' · 리뷰 확정 후 누를 수 있습니다' : ''}`;
+  return `<section class="card s12 approve"><div class="grow"><h3 style="margin:0;font-size:16px">${head}</h3>
+    <div class="sm">${sub}</div>
+    <ul>${appr.map((x) => `<li>${esc(x.title)} <span class="sm">· ${esc(routeOf(x.route))}</span></li>`).join('')}</ul></div>${btn}${st.reviewMsg.plan ? `<div class="sm">${esc(st.reviewMsg.plan)}</div>` : ''}</section>`;
 };
 
 const evidence = (rv) => {
