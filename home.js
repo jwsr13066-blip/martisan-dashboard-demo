@@ -26,6 +26,7 @@ const itemRow = (it) => {
 };
 
 const approveBtn = (p, st) => {
+  if (!U.canAct()) return p.live ? '<span class="badge tone-mute">승인은 담당 대행사가 진행합니다</span>' : '';
   if (st.approved) return '<span class="badge tone-good b">승인 접수 · 적용 결과는 카톡으로 갑니다</span>';
   if (!p.live) return '';
   if (st.approving) return '<button type="button" class="btn" disabled>실행 요청 중…</button>';
@@ -82,6 +83,7 @@ const inboxCard = (cx, p) => {
 /* 오늘 발동한 '제안' 모드 규칙 — 승인하면 오늘만 적용, 밤 12시 원복 (카톡 [✅ 제안 적용하기]와 같은 1회용 승인) */
 const pctTxt = (n) => (n > 0 ? `+${n}%` : `${n}%`);
 const ruleBtn = (rp, st) => {
+  if (!U.canAct()) return rp.status === 'applied' ? `<span class="badge tone-good b">적용 완료 ${esc(String(rp.applied_at || '').slice(11, 16))}</span>` : '<span class="badge tone-mute">대행사 검토 중</span>';
   if (rp.status === 'applied' || st.rpDone) return `<span class="badge tone-good b">${rp.status === 'applied' ? `적용 완료 ${esc(String(rp.applied_at || '').slice(11, 16))}` : '승인 접수 · 적용 결과는 카톡으로 갑니다'}</span>`;
   if (rp.status !== 'pending') return '<span class="badge tone-mute">처리됨</span>';
   if (st.rpBusy) return '<button type="button" class="btn" disabled>실행 요청 중…</button>';
@@ -179,7 +181,7 @@ const rulesCard = (cx) => {
     }
     /* 스위치 = 실제 설정 변경 요청. 한 번 누르면 확인, 한 번 더 누르면 시트 스크립트 → GitHub 설정 파일 변경 → 다음 평가부터 반영 */
     const arm = st.ruleArm && st.ruleArm.id === x.id, msg = (st.ruleMsg || {})[x.id];
-    const sw = `<button type="button" class="tg ${x.enabled ? '' : 'off'} ${arm ? 'arm' : ''}" data-rule-toggle="${esc(x.id)}" data-rule-on="${x.enabled ? 1 : 0}" aria-pressed="${x.enabled}" aria-label="${esc(x.name)} ${x.enabled ? '켜짐 · 누르면 끄기' : '꺼짐 · 누르면 켜기'}"${st.ruleBusy ? ' disabled' : ''}><i></i></button>`;
+    const sw = !U.canAct() ? `<span class="tg ${x.enabled ? '' : 'off'}" role="img" aria-label="${esc(x.name)} ${x.enabled ? '켜짐' : '꺼짐'}"><i></i></span>` : `<button type="button" class="tg ${x.enabled ? '' : 'off'} ${arm ? 'arm' : ''}" data-rule-toggle="${esc(x.id)}" data-rule-on="${x.enabled ? 1 : 0}" aria-pressed="${x.enabled}" aria-label="${esc(x.name)} ${x.enabled ? '켜짐 · 누르면 끄기' : '꺼짐 · 누르면 켜기'}"${st.ruleBusy ? ' disabled' : ''}><i></i></button>`;
     const confirm = arm ? `<div class="alert"><span>정말 ${x.enabled ? '끌까요' : '켤까요'}? 다음 평가(13:00)부터 반영 · <b>스위치를 한 번 더 누르기</b></span></div>`
       : msg ? `<span class="badge tone-${/실패/.test(msg) ? 'crit' : 'info'}" style="align-self:flex-start">${esc(msg)}</span>` : '';
     return `<div class="rule"><div class="rule-top"><span class="badge tone-${tone}">${lb}</span>${sw}</div>

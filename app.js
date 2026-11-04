@@ -84,7 +84,7 @@ const renderMain = () => {
   const gen = ind.ops && ind.ops.generatedAt ? ` · 갱신 ${R.md(ind.ops.generatedAt.slice(0, 10))} ${ind.ops.generatedAt.slice(11, 16)}` : '';
   const cx = { ind, st: state, rng: rangeFor };
   document.getElementById('main').innerHTML = `<div class="topbar"><div><h1>${esc(page.name)}</h1><div class="meta">${esc(ind.brand)} · 데이터 기준일 ${R.mdw(state.bounds.to)}${gen}${LIVE ? '' : ' · 샘플 데이터'}</div></div>
-    <div class="top-tools">${themeMenu()}</div></div>${RENDER[state.page](cx)}`;
+    <div class="top-tools">${U.canAct() ? '' : '<span class="chip" title="이 주소로는 숫자를 보기만 할 수 있습니다. 입찰·규칙 변경은 담당 대행사가 진행합니다.">보기 전용</span>'}${themeMenu()}</div></div>${RENDER[state.page](cx)}`;
 };
 
 const render = (after) => {
@@ -100,7 +100,7 @@ const scrollTo = (id) => { const el = id && document.getElementById(id); if (el)
    요청 중(approving)에는 화면이 다시 그려져도 버튼이 비활성으로 그려지고 approve() 도 바로 돌아간다. */
 let disarmTimer = null, armedAt = 0;
 const approve = () => {
-  if (state.approving || state.approved) return undefined;
+  if (!U.canAct() || state.approving || state.approved) return undefined;
   if (!state.approveArm) {
     clearTimeout(disarmTimer);
     armedAt = Date.now();
@@ -113,13 +113,13 @@ const approve = () => {
   if (!LIVE || !run) return setState({ approved: true, approveArm: false });
   setState({ approving: true, approveArm: false, approveError: '' });
   return run.withSuccessHandler(() => setState({ approved: true, approving: false }))
-    .withFailureHandler((e) => setState({ approving: false, approveError: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveBids(window.MARTISAN_DASH_KEY || '');
+    .withFailureHandler((e) => setState({ approving: false, approveError: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveBids(window.MARTISAN_DASH_KEY || '', window.MARTISAN_O || '');
 };
 
 /* ---------- 규칙 제안 적용 (실제 적용 — 한 번 더 눌러야 실행, 오늘만 · 밤 12시 원복) ---------- */
 let rpTimer = null, rpAt = 0;
 const approveRuleProp = () => {
-  if (state.rpBusy || state.rpDone) return undefined;
+  if (!U.canAct() || state.rpBusy || state.rpDone) return undefined;
   if (!state.rpArm) {
     clearTimeout(rpTimer);
     rpAt = Date.now();
@@ -132,7 +132,7 @@ const approveRuleProp = () => {
   if (!LIVE || !run) return setState({ rpDone: true, rpArm: false });
   setState({ rpBusy: true, rpArm: false, rpErr: '' });
   return run.withSuccessHandler(() => setState({ rpDone: true, rpBusy: false }))
-    .withFailureHandler((e) => setState({ rpBusy: false, rpErr: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveRuleProposal(window.MARTISAN_DASH_KEY || '');
+    .withFailureHandler((e) => setState({ rpBusy: false, rpErr: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveRuleProposal(window.MARTISAN_DASH_KEY || '', window.MARTISAN_O || '');
 };
 
 /* ---------- 자동 규칙 스위치 (설정 파일 변경 요청 — 한 번 더 눌러야 실행) ----------
@@ -144,6 +144,7 @@ const flipRule = (id, enabled) => {
   D.DATA = { ...D.DATA, [key]: { ...ind, ops: { ...ind.ops, rules: { ...rs, rules: rs.rules.map((r) => (r.id === id ? { ...r, enabled } : r)) } } } };
 };
 const toggleRule = (id, enabled) => {
+  if (!U.canAct()) return undefined;
   if (state.ruleBusy) return undefined;
   const arm = state.ruleArm;
   if (!arm || arm.id !== id) {
@@ -159,7 +160,7 @@ const toggleRule = (id, enabled) => {
   setState({ ruleBusy: true, ruleArm: null });
   return run.withSuccessHandler(() => { flipRule(id, enabled); done(`${enabled ? '켜기' : '끄기'} 요청 접수 · 설정 반영 후 다음 평가(13:00)부터`); })
     .withFailureHandler((e) => { const m = e && e.message ? e.message : String(e); done(`실행 요청 실패: ${/not found/i.test(m) ? '시트 스크립트에 새 코드(toggleRule) 반영과 새 버전 배포가 필요합니다' : m}`); })
-    .toggleRule(window.MARTISAN_DASH_KEY || '', id, enabled);
+    .toggleRule(window.MARTISAN_DASH_KEY || '', id, enabled, window.MARTISAN_O || '');
 };
 
 /* ---------- 월간 리뷰 (소유자만: 확정·계획 승인·초안 다시 만들기 — 두 번 눌러야 실행) ----------
@@ -172,6 +173,7 @@ const rvSwitch = (m) => { const loc = rvLoadLocal(m) || {}; return { reviewMonth
 let rvTimer = null, rvArmedAt = 0;
 const RV_DONE = { confirm: '확정 요청 접수 · 1~2분 뒤 새로고침하면 고객 공개 상태로 바뀝니다', plan: '계획 승인 접수 · 결재 필요 항목이 결재함으로 넘어갑니다', rebuild: '다시 만들기 접수 · 2~3분 뒤 새로고침하면 새 초안이 보입니다' };
 const reviewAct = (act) => {
+  if (!U.canAct()) return undefined;
   if (state.reviewBusy) return undefined;
   if (state.reviewArm !== act) {
     clearTimeout(rvTimer); rvArmedAt = Date.now();

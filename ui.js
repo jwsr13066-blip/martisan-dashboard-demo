@@ -4,6 +4,9 @@
 const { escT: esc, fmtShort, spark, gauge } = window.CH;
 const R = window.RANGE;
 
+/* 실행 권한 — 실데이터 화면은 사장님 전용 주소(&o=, 시트 스크립트가 MARTISAN_ROLE='owner' 주입)로 열었을 때만 승인·규칙 스위치·리뷰 확정을 보여준다.
+   고객용 주소(보기 전용)와 역할 주입이 실패한 경우는 모두 보기 전용. 샘플(데모) 화면은 흐름을 보여주려고 버튼을 그대로 둔다(실제 실행 없음). */
+const canAct = () => !(window.MARTISAN_DATA && window.MARTISAN_DATA.LIVE) || window.MARTISAN_ROLE === 'owner';
 const won = (n) => `${Math.round(n || 0).toLocaleString('ko-KR')}원`;
 const wonS = (n) => `${fmtShort(n || 0)}원`;
 const cnt = (n) => Math.round(n || 0).toLocaleString('ko-KR');
@@ -162,5 +165,5 @@ const weeklyRoas = (rows, endDate, n = 4) => Array.from({ length: n }, (_, i) =>
 });
 const roasList = (ws) => ws.map((v) => (v == null ? '—' : Math.round(v).toLocaleString('ko-KR'))).join(' → ');
 
-window.UI = { esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chIdle, chBadge, creativeSets, judgeBadge };
+window.UI = { canAct, esc, won, wonS, cnt, pct, icon, THEMES, delta, roasState, roasBadge, STATE_WORD, rangeChip, card, kpi, legend, hbars, dateBar, thumb, labelChips, fmtShort, judge, judgeFor, goalGauge, weeklyRoas, roasList, multi, sumLabel, sumBadge, staleNote, chStale, chPartial, chIdle, chBadge, creativeSets, judgeBadge };
 })();
