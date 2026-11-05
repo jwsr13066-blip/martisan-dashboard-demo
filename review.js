@@ -116,12 +116,13 @@ const daBlock = (st, rv, b, main) => {
     ${U.legend([['var(--acc)', `구매 ${b.noun} ${it.with_conv}개 · 광고비 ${100 - Math.round((z.share || 0) * 100)}%`], ['var(--crit)', `무전환 ${b.noun} ${it.items - it.with_conv}개 · 광고비 ${Math.round((z.share || 0) * 100)}%`]])}` : '';
   const rows = [...(it.top || []).map((t) => [esc(t[0]), cnt(t[1]), cnt(t[2]), `<span class="up">${pctS(t[3])}</span>`, U.judgeBadge(t[4])]),
     ...(it.delayed || []).map((t) => [esc(t[0]), '0', cnt(t[1]), '—', U.judgeBadge(t[3] || '제외 중 · 지연 구매')]),
-    ...(it.excluded_spend || []).map((t) => [esc(t[0]), cnt(t[1]), '0', '<span class="dn">0%</span>', U.judgeBadge(t[3])])];
+    ...(it.excluded_spend || []).map((t) => [esc(t[0]), cnt(t[1]), '0', '<span class="dn">0%</span>', U.judgeBadge(t[3])]),
+    ...(it.bottom || []).filter((t) => !(it.excluded_spend || []).some((x) => x[0] === t[0])).map((t) => [esc(t[0]), cnt(t[1]), '0', '<span class="dn">0%</span>', U.judgeBadge('제외 추천')])];
   return `<section class="card s12"><div class="card-h"><h3>① 성과 브리핑 <small>${esc(b.name)}${b.covered_to ? ` · ${md(b.covered_to)}까지 반영` : ''}</small></h3>${b.prev.roas != null && b.kpi.roas != null ? `<span class="badge tone-${b.kpi.roas >= b.prev.roas ? 'good' : 'mute'}">전월 대비 ROAS ${b.kpi.roas >= b.prev.roas ? '▲' : '▼'}${Math.abs(b.kpi.roas - b.prev.roas)}%p</span>` : ''}</div>
     ${main ? lead(st, rv, 'da_lead', 'da_sub') : ''}${kpiRow(b)}
     <div class="grid">${lv ? `<div class="s6" style="min-width:0"><div class="sm">일 광고비 변화 감지 ${md(lv.date)} 전후 (하루 평균)</div>${lvTbl}</div>` : ''}<div class="s${lv ? 6 : 12}" style="min-width:0"><div class="sm">광고비가 쓰인 ${b.noun} ${cnt(it.items)}개 중 구매가 나온 ${b.noun}</div>${share}</div></div>
     ${main ? aiText(st, rv, ['da_body1', 'da_body2']) : ''}
-    ${rows.length ? table([`상위 ${b.noun}`, '광고비', '구매', 'ROAS', '판정'], rows) : ''}</section>`;
+    ${rows.length ? table([`주요 ${b.noun} <span class="sm">상위·구매 없는 ${b.noun}(광고비 1만 원 이상)</span>`, '광고비', '구매', 'ROAS', '판정'], rows) : ''}</section>`;
 };
 
 const planCard = (st, rv, title, items, id) => {
