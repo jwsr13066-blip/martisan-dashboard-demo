@@ -12,33 +12,57 @@ const MODE = { auto: ['good', '자동'], propose: ['info', '제안'], alert: ['w
 const pendingOf = (ops, today) => {
   const a = ops.approvals || {};
   const expired = a.expires && a.expires < today;
-  return { a, live: a.status === 'pending' && a.count > 0 && !expired, expired };
+  const failed = !!(a.run && a.run.ok === false);  // 입찰 매니저 마지막 실행 실패 — 제안이 안 만들어졌거나 적용이 안 됨
+  return { a, live: a.status === 'pending' && a.count > 0 && !expired, expired, failed };
 };
+const failText = (p) => `${p.a.run.mode === 'apply' ? '입찰 제안 적용' : '주간 입찰 제안 만들기'}가 ${R.mdw(p.a.run.at.slice(0, 10))}에 실패했습니다 · 입찰은 바뀌지 않았고 담당 대행사가 확인 중입니다`;
 
 const changePct = (it) => (it.bid ? Math.round(((it.new - it.bid) / it.bid) * 100) : 0);
 const rankItems = (items) => items.slice().sort((x, y) => (x.dir === 'off' ? -1 : y.dir === 'off' ? 1 : Math.abs(changePct(y)) - Math.abs(changePct(x))));
-const itemRow = (it) => {
+/* 줄 하나. pick = true/false 면 체크박스(선택 승인), null 이면 보기만. held = 선택에서 빠져 적용하지 않는 건(보류) */
+const itemRow = (it, pick = null, held = false) => {
   const [tone] = DIR[it.dir] || DIR.hold;
   const dt = it.dirText || (it.dir === 'off' ? 'OFF' : `${changePct(it) > 0 ? '+' : ''}${changePct(it)}%`);
   const act = it.act || (it.dir === 'off' ? 'OFF 제안 (승인 전엔 유지)' : `입찰 ${cnt(it.bid)}원 → ${cnt(it.new)}원`);
-  return `<div class="li"><span class="badge b dir tone-${tone}">${esc(dt)}</span><div class="grow"><div class="t">${esc(it.name || '')}${it.group ? ` <span class="sm">${esc(it.group)}</span>` : ''}</div>
-    <div class="sm">${esc(it.reason || '')}${it.reason ? ' → ' : ''}${esc(act)}</div></div></div>`;
+  const inner = `<span class="badge b dir tone-${tone}">${esc(dt)}</span><div class="grow"><div class="t">${esc(it.name || '')}${it.group ? ` <span class="sm">${esc(it.group)}</span>` : ''}</div>
+    <div class="sm">${esc(it.reason || '')}${it.reason ? ' → ' : ''}${esc(act)}</div></div>${held ? '<span class="badge tone-mute">보류</span>' : ''}`;
+  if (pick == null) return `<div class="li${held ? ' off' : ''}">${inner}</div>`;
+  return `<label class="li pick${pick ? '' : ' off'}"><input type="checkbox" data-bid-sel="${esc(it.id)}"${pick ? ' checked' : ''} aria-label="${esc(it.name || '')} 승인 대상에 포함">${inner}</label>`;
 };
+
+/* 건별 선택 승인 — st.bidSel: null = 전부 선택(기본, 일괄 승인과 같음) · 배열 = 고른 항목 id. 고르지 않은 건은 보류(이번 주 적용 안 함) */
+const selOf = (a, st) => {
+  const ids = (a.items || []).map((it) => it.id), on = (id) => st.bidSel == null || st.bidSel.includes(id);
+  const n = ids.filter(on).length;
+  return { n, total: ids.length, held: ids.length - n, all: n === ids.length, on };
+};
+const pickIds = (a, kind) => (a.items || []).filter((it) => kind === 'all' || it.dir === kind).map((it) => it.id);
+/* 일부만 승인하는 서버 함수(approveBidsSelected, Apps Script v3.7)가 배포돼 있는지 — 없으면 일부 승인 버튼을 잠근다(옛 서버는 선택을 무시하고 전체를 적용하므로) */
+const selReady = () => {
+  const run = window.google && window.google.script && window.google.script.run;
+  return !(window.MARTISAN_DATA && window.MARTISAN_DATA.LIVE) || !run || typeof run.approveBidsSelected === 'function';
+};
+const SEL_WAIT = '일부만 승인하는 기능은 서버 새 버전 배포 후 열립니다 · 지금은 전체 선택 승인만 가능';
 
 const approveBtn = (p, st) => {
   if (!U.canAct()) return p.live ? '<span class="badge tone-mute">승인은 담당 대행사가 진행합니다</span>' : '';
-  if (st.approved) return '<span class="badge tone-good b">승인 접수 · 적용 결과는 카톡으로 갑니다</span>';
+  const s = selOf(p.a, st);
+  if (st.approved) return `<span class="badge tone-good b">승인 접수 · ${s.all ? '' : `${s.n}건 적용 · ${s.held}건 보류 · `}적용 결과는 카톡으로 갑니다</span>`;
   if (!p.live) return '';
   if (st.approving) return '<button type="button" class="btn" disabled>실행 요청 중…</button>';
+  if (!s.n) return '<button type="button" class="btn" disabled>선택한 제안이 없습니다</button>';
+  if (!s.all && !selReady()) return `<button type="button" class="btn" disabled title="${SEL_WAIT}">선택한 ${s.n}건 승인하기</button>`;
   const armed = st.approveArm;
-  return `<button type="button" class="btn ${armed ? 'arm' : ''}" data-approve="1">${armed ? `정말 적용할까요? ${p.a.count}건 · 한 번 더 누르기` : `입찰 제안 ${p.a.count}건 승인하기`}</button>`;
+  const label = armed ? `정말 적용할까요? ${s.n}건 · 한 번 더 누르기` : s.all ? `입찰 제안 ${s.total}건 승인하기` : `선택한 ${s.n}건 승인하기`;
+  const sum = armed ? `<span class="badge tone-warn b">${s.all ? `${s.total}건 전체 적용` : `${s.total}건 중 ${s.n}건 적용 · ${s.held}건 보류`}</span>` : '';
+  return `<span class="apv">${sum}<button type="button" class="btn ${armed ? 'arm' : ''}" data-approve="1">${label}</button></span>`;
 };
 
 const hero = (cx, p, alerts) => {
   const { ind, st } = cx, ops = ind.ops;
   const autoYday = (ops.timeline || []).filter((e) => e.date === st.bounds.to && ['rule', 'weight', 'apply'].includes(e.type)).length;
   const todo = p.live ? `승인 대기 <b>${p.a.count}건</b>` : '승인 대기 없음';
-  const sub = p.live ? `승인 유효 ${esc(R.mdw(p.a.expires))}까지 · 누르면 바로 적용 · 주간 변경 20% 상한 · OFF는 제안만${p.a.effect ? ` · ${esc(p.a.effect)}` : ''}`
+  const sub = p.failed ? `⚠️ ${esc(failText(p))}` : p.live ?`승인 유효 ${esc(R.mdw(p.a.expires))}까지 · 누르면 바로 적용 · 주간 변경 20% 상한 · OFF는 제안만${p.a.effect ? ` · ${esc(p.a.effect)}` : ''}`
     : p.expired ? '지난 제안의 승인 유효기간이 지났습니다. 다음 제안은 월요일 09:17에 올라옵니다.' : '다음 주간 입찰 제안은 월요일 09:17에 올라옵니다.';
   return `<section class="card hero" id="sec-inbox-top"><div style="display:flex;flex-direction:column;gap:8px">
       <h2>안녕하세요, 사장님</h2>
@@ -74,8 +98,14 @@ const inboxCard = (cx, p) => {
   const shown = st.inboxAll ? items : items.slice(0, 3);
   const counts = a.counts || {};
   const summary = a.summary || `입찰 인상 ${counts.up || 0} · 인하 ${counts.down || 0} · OFF ${counts.off || 0}`;
-  const head = p.live ? `승인 대기 ${a.count}건` : a.status === 'applied' ? `지난 제안 ${a.count}건 · 적용 완료` : '승인 대기 없음';
-  const body = items.length ? shown.map(itemRow).join('') : '<div class="empty">지금 승인할 제안이 없습니다. 다음 주간 제안은 월요일 09:17에 올라옵니다.</div>';
+  const head = p.live ? `승인 대기 ${a.count}건` : a.status === 'applied' ? `지난 제안 ${a.count}건 · ${a.held ? `적용 ${a.count - a.held} · 보류 ${a.held}` : '적용 완료'}` : '승인 대기 없음';
+  const s = selOf(a, st), canPick = p.live && U.canAct() && !st.approved && !st.approving;  // 체크박스는 승인 대기 + 사장님 전용 주소에서만
+  const same = (kind) => { const want = pickIds(a, kind); return s.n === want.length && want.every(s.on); };
+  const pickBar = canPick ? `<div class="pickbar"><span class="sm"><b>${s.total}건 중 ${s.n}건 선택</b>${s.held ? ` · ${s.held}건 보류(이번 주 적용 안 함)` : ' · 선택을 빼면 그 건은 보류됩니다'}</span>
+      <span class="picks">${[['all', '전체 선택'], ['none', '전체 해제'], ['up', '인상만'], ['down', '인하만']].map(([k, nm]) => `<button type="button" class="chip${(k === 'none' ? !s.n : s.n && same(k)) ? ' on' : ''}" data-bid-pick="${k}">${nm}</button>`).join('')}</span></div>
+      ${!s.all && !selReady() ? `<div class="sm">⚠️ ${SEL_WAIT}</div>` : ''}` : '';
+  const row = (it) => (canPick ? itemRow(it, s.on(it.id)) : itemRow(it, null, !!it.held || (p.live && st.approved && !s.on(it.id))));
+  const body = items.length ? pickBar + shown.map(row).join('') : '<div class="empty">지금 승인할 제안이 없습니다. 다음 주간 제안은 월요일 09:17에 올라옵니다.</div>';
   const more = items.length > 3 ? `<button type="button" class="link" data-toggle="inboxAll">${st.inboxAll ? '접기' : `나머지 ${items.length - 3}건 펼치기`}</button>` : '';
   return card({ id: 'inbox', span: 7, title: head, sub: `예상 영향 금액 순 · ${esc(summary)}`, body: `<div>${body}</div><div class="card-h" style="border-top:1px solid var(--line);padding-top:12px">${more || '<span></span>'}${approveBtn(p, st)}</div>${ruleBox(cx.ind.ops.ruleProposal, st)}${planBox(cx.ind.ops.reviewPlan)}` });
 };
@@ -122,7 +152,7 @@ const scoreCard = (cx) => {
   const partial = h.after.days != null && h.after.days < 7 ? ` · 적용 후 ${h.after.days}일치(7일 기준 환산, 7일 지나면 확정)` : '';
   return card({ id: 'score', span: 5, title: '변경 전후 성과', tools: sel,
     body: `<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big num">${h.before.roas}% → ${h.after.roas}%</span><span class="badge tone-${up ? 'good' : 'warn'}">ROAS ${up ? '▲' : '▼'}</span></div>
-      <div class="sm">적용 전 7일 vs 후 7일${partial} · 입찰 인상 ${h.counts.up || 0} · 인하 ${h.counts.down || 0} · OFF ${h.counts.off || 0}</div>
+      <div class="sm">적용 전 7일 vs 후 7일${partial} · 입찰 인상 ${h.counts.up || 0} · 인하 ${h.counts.down || 0} · OFF ${h.counts.off || 0}${h.held ? ` · 보류 ${h.held}(적용 안 함)` : ''}</div>
       <div class="hbars" style="grid-template-columns:56px 1fr 52px">${pair('광고비', 'cost', 'warn', false)}${pair(ind.revLabel, 'rev', 'good', true)}${pair(ind.convLabel, 'conv', 'info', true)}</div>
       <div class="sm">회색 = 적용 전 · 색 = 적용 후</div>` });
 };
@@ -152,6 +182,7 @@ const alertsOf = (cx, p) => {
   if (gaps) out.push(['crit', '누락', `데이터 수집 누락 ${gaps}일 (진단에서 제외)`]);
   const w = ind.ops.weather, rain = (ind.ops.rules?.rules || []).find((x) => x.id === 'rain_mobile' && x.enabled);
   if (w && w.tomorrow && rain && w.tomorrow.rain_prob >= 70) out.push(['warn', '날씨', `내일 ${esc(w.location?.name || '')} 강수확률 ${w.tomorrow.rain_prob}% → 비 오는 날 규칙 발동 예정`]);
+  if (p.failed) out.push(['crit', '실패', esc(failText(p))]);
   if (p.live) out.push(['info', '승인', `입찰 제안 ${p.a.count}건 승인 대기 (${R.md(p.a.expires)}까지)`]);
   (ind.ops.rules?.rules || []).filter((x) => x.mode === 'propose' && (x.fired_dates || []).includes(st.bounds.to)).forEach((x) => out.push(['info', '제안', `${esc(x.name)} 제안 대기`]));
   (ind.ops.pending || []).forEach((x) => out.push(['mute', '연동', `${esc(x.name)} · ${esc(x.reason)}`]));

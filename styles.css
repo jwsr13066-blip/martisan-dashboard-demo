@@ -170,6 +170,13 @@ html[data-theme="dark"] .solid-warn, html[data-theme="dark"] .solid-info { color
 .li .t { font-weight: 500; }
 .li .grow { flex: 1; min-width: 0; }
 .dir { min-width: 54px; text-align: center; font-weight: 700; }
+/* 건별 선택 승인 — 줄 전체가 체크박스 라벨, 선택에서 뺀(보류) 줄은 흐리게 */
+.li.pick { cursor: pointer; }
+.li.pick input { width: 18px; height: 18px; margin: 3px 0 0; flex: none; accent-color: var(--acc); cursor: pointer; }
+.li.off .t, .li.off .dir { opacity: .5; }
+.pickbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 6px; }
+.picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.apv { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; background: var(--track); }
 .dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.crit { background: var(--crit); } .dot.info { background: var(--info); } .dot.mute { background: var(--mute); }
 .alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--inset); font-size: 13px; }

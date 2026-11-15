@@ -27,7 +27,7 @@ const initialFor = (key) => {
   const ind = D.DATA[key], bounds = { from: ind.firstDate, to: ind.lastDate };
   const P = R.presets(bounds.to);
   const range = R.spanDays(P.month) >= 3 ? P.month : P.d7;
-  return { industry: key, bounds, range: R.clamp(range, bounds), cardRanges: {}, chipOpen: null, approved: false, approveArm: false, approveError: '', rpArm: false, rpBusy: false, rpDone: false, rpErr: '', histIdx: null };
+  return { industry: key, bounds, range: R.clamp(range, bounds), cardRanges: {}, chipOpen: null, approved: false, approveArm: false, approveError: '', bidSel: null, rpArm: false, rpBusy: false, rpDone: false, rpErr: '', histIdx: null };
 };
 let state = {
   ...initialFor(LIVE ? 'live' : 'commerce'), page: 'home', themeOpen: false, approving: false,
@@ -99,8 +99,18 @@ const scrollTo = (id) => { const el = id && document.getElementById(id); if (el)
    더블클릭 한 번으로 두 단계를 통과하지 않도록 무장 후 0.8초 안의 두 번째 누름은 무시.
    요청 중(approving)에는 화면이 다시 그려져도 버튼이 비활성으로 그려지고 approve() 도 바로 돌아간다. */
 let disarmTimer = null, armedAt = 0;
+/* 건별 선택 — bidSel: null = 전부 선택 · 배열 = 고른 항목 id (home.js selOf 와 같은 규칙). 선택이 바뀌면 무장을 푼다 */
+const bidApprovals = () => (D.DATA[state.industry].ops || {}).approvals || {};
+const bidIds = () => (bidApprovals().items || []).map((it) => it.id);
+const bidPicked = () => bidIds().filter((id) => state.bidSel == null || state.bidSel.includes(id));
+const setBidSel = (picked, extra = {}) => setState({ ...extra, bidSel: picked.length === bidIds().length ? null : picked, approveArm: false });
+const toggleBid = (id) => { const cur = bidPicked(); return setBidSel(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]); };
+const pickBids = (kind) => setBidSel(kind === 'none' ? [] : (bidApprovals().items || []).filter((it) => kind === 'all' || it.dir === kind).map((it) => it.id), { inboxAll: true });
+
 const approve = () => {
   if (!U.canAct() || state.approving || state.approved) return undefined;
+  const picked = bidPicked(), partial = picked.length < bidIds().length;
+  if (!picked.length) return undefined;
   if (!state.approveArm) {
     clearTimeout(disarmTimer);
     armedAt = Date.now();
@@ -111,9 +121,13 @@ const approve = () => {
   clearTimeout(disarmTimer);
   const run = window.google && window.google.script && window.google.script.run;
   if (!LIVE || !run) return setState({ approved: true, approveArm: false });
+  // 일부 승인은 새 서버 함수로만 보낸다 — 옛 서버의 approveBids 는 선택을 모르고 전체를 적용하므로 절대 그쪽으로 넘기지 않는다
+  if (partial && typeof run.approveBidsSelected !== 'function') return setState({ approveArm: false, approveError: '일부만 승인하는 기능은 서버 새 버전 배포 후 열립니다 · 입찰은 바뀌지 않았습니다' });
   setState({ approving: true, approveArm: false, approveError: '' });
-  return run.withSuccessHandler(() => setState({ approved: true, approving: false }))
-    .withFailureHandler((e) => setState({ approving: false, approveError: `실행 요청 실패: ${e && e.message ? e.message : e}` })).approveBids(window.MARTISAN_DASH_KEY || '', window.MARTISAN_O || '');
+  const call = run.withSuccessHandler(() => setState({ approved: true, approving: false }))
+    .withFailureHandler((e) => setState({ approving: false, approveError: `실행 요청 실패: ${e && e.message ? e.message : e}` }));
+  const key = window.MARTISAN_DASH_KEY || '', o = window.MARTISAN_O || '';
+  return partial ? call.approveBidsSelected(key, o, { date: bidApprovals().date, ids: picked }) : call.approveBids(key, o);
 };
 
 /* ---------- 규칙 제안 적용 (실제 적용 — 한 번 더 눌러야 실행, 오늘만 · 밤 12시 원복) ---------- */
@@ -223,6 +237,7 @@ const onClick = (ev) => {
   if ((b = q('[data-set-theme]'))) { store.set(THEME_KEY, b.dataset.setTheme); return setState({ theme: b.dataset.setTheme, themeOpen: false }); }
   if ((b = q('[data-gp]'))) { const p = R.presets(state.bounds.to)[b.dataset.gp]; return setState({ ...base, range: R.clamp({ from: p.from, to: p.to }, state.bounds), cardRanges: {} }); }
   if (q('[data-approve]')) return ev.detail > 1 ? undefined : approve();
+  if ((b = q('[data-bid-pick]'))) return pickBids(b.dataset.bidPick);
   if (q('[data-rule-approve]')) return ev.detail > 1 ? undefined : approveRuleProp();
   if ((b = q('[data-rule-toggle]'))) return ev.detail > 1 ? undefined : toggleRule(b.dataset.ruleToggle, b.dataset.ruleOn !== '1');
   if ((b = q('[data-scroll]'))) return scrollTo(b.dataset.scroll);
@@ -241,6 +256,7 @@ const onClick = (ev) => {
 const onChange = (ev) => {
   const t = ev.target, v = t.value;
   if (t.matches('select[data-hist]')) return setState({ histIdx: Number(v) });
+  if (t.matches('input[data-bid-sel]')) return toggleBid(t.dataset.bidSel);
   if (t.matches('select[data-review-month]')) return setState(rvSwitch(v));
   if (t.matches('textarea[data-rv-text]')) {
     const rv = window.PAGE_REVIEW.current(state), slot = t.dataset.rvText, orig = ((rv && rv.texts) || {})[slot] || '';
