@@ -135,6 +135,21 @@ const planBox = (pl) => {
   return `<div style="border-top:1px solid var(--line);padding-top:12px"><div class="sm"><b>${Number(pl.month.slice(5, 7))}월 계획 · 월간 리뷰에서 승인 ${esc(R.md(pl.approved_at.slice(0, 10)))}</b></div>${pl.items.map((x) => `<div class="li"><span class="badge b dir tone-${x.status === 'done' ? 'good' : 'info'}">${x.status === 'done' ? '완료' : '대기'}</span><div class="grow"><div class="t">${esc(x.title)}</div><div class="sm">${esc(PLAN_ROUTE[x.route] || x.route)} · ${esc(x.why)}</div></div></div>`).join('')}</div>`;
 };
 
+/* 적용 후 7일 매출 상위 상품 — 소재 일별 데이터가 그 기간을 덮을 때만. 그 회차에 입찰을 바꾼 상품은 방향 배지 */
+const TOP_N = 5;
+const scoreTop = (ind, h) => {
+  const C = ind.creatives;
+  if (!C || !C.coverage || h.applied_at < C.coverage.from || !h.after.days) return '';
+  const dirOf = Object.fromEntries((h.items || []).map((it) => [it.id, it.dir]));
+  const { rows } = R.creativeRows(ind, { from: h.applied_at, to: R.addDays(h.applied_at, 6) });
+  const top = rows.filter((a) => a.rev > 0).sort((a, b) => b.rev - a.rev || b.roas - a.roas).slice(0, TOP_N);
+  const head = `<div class="sm" style="border-top:1px solid var(--line);padding-top:12px"><b>성과 상위 상품</b> · 적용 후 ${esc(ind.revLabel)} 순</div>`;
+  if (!top.length) return `${head}<div class="sm">적용 후 ${esc(ind.convLabel)}가 발생한 상품이 아직 없습니다.</div>`;
+  const badge = (a) => { const d = DIR[dirOf[a.id]]; return d ? ` <span class="badge tone-${d[0]}">입찰 ${d[1]}</span>` : ''; };
+  return `${head}<div>${top.map((a) => `<div class="li" style="align-items:center"><div style="width:48px;flex:none">${U.thumb(a, 48)}</div>
+    <div class="grow"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.name)}</div><div class="sm num">광고비 ${won(a.cost)} · ${esc(ind.revLabel)} ${won(a.rev)} · <b>ROAS ${a.cost ? `${cnt(a.roas)}%` : '—'}</b>${badge(a)}</div></div></div>`).join('')}</div>`;
+};
+
 const scoreCard = (cx) => {
   const { ind, st } = cx, hs = ind.ops.history || [];
   if (!hs.length) return card({ id: 'score', span: 5, title: '변경 전후 성과', body: '<div class="empty">첫 승인 뒤 7일이 지나면 적용 전 7일과 후 7일을 비교합니다.</div>' });
@@ -154,7 +169,7 @@ const scoreCard = (cx) => {
     body: `<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big num">${h.before.roas}% → ${h.after.roas}%</span><span class="badge tone-${up ? 'good' : 'warn'}">ROAS ${up ? '▲' : '▼'}</span></div>
       <div class="sm">적용 전 7일 vs 후 7일${partial} · 입찰 인상 ${h.counts.up || 0} · 인하 ${h.counts.down || 0} · OFF ${h.counts.off || 0}${h.held ? ` · 보류 ${h.held}(적용 안 함)` : ''}</div>
       <div class="hbars" style="grid-template-columns:56px 1fr 52px">${pair('광고비', 'cost', 'warn', false)}${pair(ind.revLabel, 'rev', 'good', true)}${pair(ind.convLabel, 'conv', 'info', true)}</div>
-      <div class="sm">회색 = 적용 전 · 색 = 적용 후</div>` });
+      <div class="sm">회색 = 적용 전 · 색 = 적용 후</div>${scoreTop(ind, h)}` });
 };
 
 const logCard = (cx) => {
