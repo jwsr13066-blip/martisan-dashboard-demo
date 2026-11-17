@@ -229,7 +229,7 @@ const rulesCard = (cx) => {
     const arm = st.ruleArm && st.ruleArm.id === x.id, msg = (st.ruleMsg || {})[x.id];
     const sw = !U.canAct() ? `<span class="tg ${x.enabled ? '' : 'off'}" role="img" aria-label="${esc(x.name)} ${x.enabled ? '켜짐' : '꺼짐'}"><i></i></span>` : `<button type="button" class="tg ${x.enabled ? '' : 'off'} ${arm ? 'arm' : ''}" data-rule-toggle="${esc(x.id)}" data-rule-on="${x.enabled ? 1 : 0}" aria-pressed="${x.enabled}" aria-label="${esc(x.name)} ${x.enabled ? '켜짐 · 누르면 끄기' : '꺼짐 · 누르면 켜기'}"${st.ruleBusy ? ' disabled' : ''}><i></i></button>`;
     const confirm = arm ? `<div class="alert"><span>정말 ${x.enabled ? '끌까요' : '켤까요'}? 다음 평가(13:00)부터 반영 · <b>스위치를 한 번 더 누르기</b></span></div>`
-      : msg ? `<span class="badge tone-${/실패/.test(msg) ? 'crit' : 'info'}" style="align-self:flex-start">${esc(msg)}</span>` : '';
+      : msg ? `<span class="badge tone-${/실패/.test(msg) ? 'crit' : 'info'}" style="align-self:flex-start;white-space:normal">${esc(msg)}</span>` : '';
     return `<div class="rule"><div class="rule-top"><span class="badge tone-${tone}">${lb}</span>${sw}</div>
       <b>${esc(x.name)}</b><div class="sm">${esc(x.desc || '')}</div><div class="sm">${eff}</div>${confirm}</div>`;
   };
